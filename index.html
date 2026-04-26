@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SS14 Particle Effect Builder</title>
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://example.com/AndromedaParticleSystem/">
+  <meta property="og:title" content="SS14 Particle Effect Builder">
+  <meta property="og:description" content="Preview SS14 particle prototypes and export ready-to-paste YAML.">
+  <meta property="og:image" content="https://example.com/AndromedaParticleSystem/preview.png">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://example.com/AndromedaParticleSystem/">
+  <meta property="twitter:title" content="SS14 Particle Effect Builder">
+  <meta property="twitter:description" content="Preview SS14 particle prototypes and export ready-to-paste YAML.">
+  <meta property="twitter:image" content="https://example.com/AndromedaParticleSystem/preview.png">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <section class="preview-panel">
+      <header class="topbar">
+        <div>
+          <h1>Particle Effect Builder</h1>
+          <p>Preview SS14 particle prototypes and export ready-to-paste YAML.</p>
+        </div>
+        <div class="topbar-actions">
+          <button id="pauseBtn" type="button" title="Pause or resume the preview">Pause</button>
+          <button id="resetBtn" type="button" title="Restart the effect">Restart</button>
+          <button id="burstBtn" type="button" title="Fire a burst immediately">Burst</button>
+        </div>
+      </header>
+
+      <div class="stage-wrap">
+        <canvas id="stage" width="960" height="640" aria-label="Particle preview"></canvas>
+        <div class="stage-grid" aria-hidden="true"></div>
+        <div class="stats" id="stats">0 particles</div>
+      </div>
+    </section>
+
+    <aside class="editor-panel">
+      <nav class="tabs" aria-label="Editor sections">
+        <button class="tab active" type="button" data-tab="basic">Basic</button>
+        <button class="tab" type="button" data-tab="motion">Motion</button>
+        <button class="tab" type="button" data-tab="curves">Curves</button>
+        <button class="tab" type="button" data-tab="yaml">YAML</button>
+      </nav>
+
+      <section class="tab-panel active" data-panel="basic">
+        <div class="field-row">
+          <label for="preset">Preset</label>
+          <select id="preset"></select>
+        </div>
+        <div class="field-row">
+          <label for="effectId">Effect id</label>
+          <input id="effectId" type="text" value="MyParticleEffect">
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="spritePath">Sprite RSI</label>
+            <input id="spritePath" type="text" value="Effects/particles.rsi">
+          </div>
+          <div class="field-row">
+            <label for="spriteState">State</label>
+            <input id="spriteState" type="text" value="spark">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="startColor">Start color</label>
+            <input id="startColor" type="color" value="#ffee88">
+          </div>
+          <div class="field-row">
+            <label for="endColor">End color</label>
+            <input id="endColor" type="color" value="#ff4400">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="startAlpha">Start alpha</label>
+            <input id="startAlpha" type="range" min="0" max="1" step="0.01" value="1">
+          </div>
+          <div class="field-row">
+            <label for="endAlpha">End alpha</label>
+            <input id="endAlpha" type="range" min="0" max="1" step="0.01" value="0">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="particleSize">Size</label>
+            <input id="particleSize" type="number" step="0.01" min="0.01" value="0.08">
+          </div>
+          <div class="field-row">
+            <label for="sizeVariance">Size variance</label>
+            <input id="sizeVariance" type="number" step="0.01" min="0" value="0.03">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="lifetime">Lifetime (s)</label>
+            <input id="lifetime" type="number" step="0.05" min="0.05" value="0.6">
+          </div>
+          <div class="field-row">
+            <label for="lifetimeVariance">Lifetime variance (s)</label>
+            <input id="lifetimeVariance" type="number" step="0.05" min="0" value="0.2">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="maxCount">Max count</label>
+            <input id="maxCount" type="number" step="1" min="1" max="8000" value="30">
+          </div>
+          <div class="field-row">
+            <label for="emissionRate">Emission rate</label>
+            <input id="emissionRate" type="number" step="1" min="0" value="20">
+          </div>
+        </div>
+        <div class="check-row">
+          <label><input id="burst" type="checkbox" checked> Burst</label>
+          <label><input id="worldSpace" type="checkbox" checked> World space</label>
+          <label><input id="ignoreQualitySettings" type="checkbox"> Ignore quality</label>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="motion">
+        <div class="split">
+          <div class="field-row">
+            <label for="speed">Speed</label>
+            <input id="speed" type="number" step="0.1" min="0" value="3.5">
+          </div>
+          <div class="field-row">
+            <label for="speedVariance">Speed variance</label>
+            <input id="speedVariance" type="number" step="0.1" min="0" value="1.5">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="emitAngle">Emit angle</label>
+            <input id="emitAngle" type="number" step="1" value="0">
+          </div>
+          <div class="field-row">
+            <label for="spreadAngle">Spread angle</label>
+            <input id="spreadAngle" type="number" step="1" min="0" max="360" value="360">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="gravity">Gravity</label>
+            <input id="gravity" type="number" step="0.1" value="4">
+          </div>
+          <div class="field-row">
+            <label for="drag">Drag</label>
+            <input id="drag" type="number" step="0.1" min="0" value="2.5">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="terminalSpeed">Terminal speed</label>
+            <input id="terminalSpeed" type="number" step="0.1" min="0" value="0">
+          </div>
+          <div class="field-row">
+            <label for="stretchFactor">Stretch</label>
+            <input id="stretchFactor" type="number" step="0.05" min="0" value="0">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="forceX">Force X</label>
+            <input id="forceX" type="number" step="0.1" value="0">
+          </div>
+          <div class="field-row">
+            <label for="forceY">Force Y</label>
+            <input id="forceY" type="number" step="0.1" value="0">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="noiseStrength">Noise strength</label>
+            <input id="noiseStrength" type="number" step="0.1" min="0" value="0">
+          </div>
+          <div class="field-row">
+            <label for="noiseFrequency">Noise frequency</label>
+            <input id="noiseFrequency" type="number" step="0.1" min="0" value="1">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="shapeType">Shape</label>
+            <select id="shapeType">
+              <option>Point</option>
+              <option>CircleEdge</option>
+              <option>CircleFill</option>
+              <option>Box</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <label for="shapeRadius">Radius</label>
+            <input id="shapeRadius" type="number" step="0.05" min="0" value="0.5">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="boxX">Box half-width</label>
+            <input id="boxX" type="number" step="0.05" min="0" value="0.5">
+          </div>
+          <div class="field-row">
+            <label for="boxY">Box half-height</label>
+            <input id="boxY" type="number" step="0.05" min="0" value="0.5">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="rotationSpeed">Rotation speed</label>
+            <input id="rotationSpeed" type="number" step="1" value="0">
+          </div>
+          <div class="field-row">
+            <label for="rotationSpeedVariance">Rotation variance</label>
+            <input id="rotationSpeedVariance" type="number" step="1" value="0">
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="curves">
+        <div class="curve-card">
+          <div class="curve-title">
+            <strong>Size over lifetime</strong>
+            <label><input id="enableSizeCurve" type="checkbox" checked> Include</label>
+          </div>
+          <div class="curve-editor" data-curve="size"></div>
+        </div>
+        <div class="curve-card">
+          <div class="curve-title">
+            <strong>Speed over lifetime</strong>
+            <label><input id="enableSpeedCurve" type="checkbox" checked> Include</label>
+          </div>
+          <div class="curve-editor" data-curve="speed"></div>
+        </div>
+        <div class="curve-card">
+          <div class="curve-title">
+            <strong>Alpha over lifetime</strong>
+            <label><input id="enableAlphaCurve" type="checkbox" checked> Include</label>
+          </div>
+          <div class="curve-editor" data-curve="alpha"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="yaml">
+        <div class="yaml-actions">
+          <input id="yamlFile" type="file" accept=".yml,.yaml,text/yaml,text/plain" hidden>
+          <button id="openYaml" type="button">Open</button>
+          <button id="importYaml" type="button">Import</button>
+          <button id="copyYaml" type="button">Copy</button>
+          <button id="downloadYaml" type="button">Download</button>
+        </div>
+        <div class="import-status" id="importStatus" role="status" aria-live="polite"></div>
+        <textarea id="yamlOutput" spellcheck="false" aria-label="Generated YAML"></textarea>
+      </section>
+    </aside>
+  </main>
+
+  <script src="presets.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
