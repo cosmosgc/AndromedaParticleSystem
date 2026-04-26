@@ -48,6 +48,8 @@ let lastTime = performance.now();
 let paused = false;
 let burstDone = false;
 const spriteCache = new Map();
+const tintCanvas = document.createElement("canvas");
+const tintCtx = tintCanvas.getContext("2d");
 
 function number(id) {
   return Number($(id).value) || 0;
@@ -460,11 +462,20 @@ function drawSpriteParticle(sprite, color, radius) {
   const width = radius * 2 * (frame.width / frameSize);
   const height = radius * 2 * (frame.height / frameSize);
 
-  ctx.globalAlpha *= color.a;
+  tintCanvas.width = frame.width;
+  tintCanvas.height = frame.height;
+  tintCtx.clearRect(0, 0, frame.width, frame.height);
+  tintCtx.drawImage(image, frame.x, frame.y, frame.width, frame.height, 0, 0, frame.width, frame.height);
+  tintCtx.globalCompositeOperation = "source-in";
+  tintCtx.fillStyle = rgbToCss({ r: color.r, g: color.g, b: color.b, a: 1 });
+  tintCtx.fillRect(0, 0, frame.width, frame.height);
+  tintCtx.globalCompositeOperation = "source-over";
+
+  ctx.globalAlpha = color.a;
   ctx.drawImage(
-    image,
-    frame.x,
-    frame.y,
+    tintCanvas,
+    0,
+    0,
     frame.width,
     frame.height,
     -width / 2,
@@ -895,6 +906,102 @@ function addColorStop() {
   generateYaml();
 }
 
+function getSupportedRecordingMimeType() {
+  const candidates = [
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm",
+    "video/mp4"
+  ];
+
+  for (const candidate of candidates) {
+    if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function createMediaRecorder(stream) {
+  const mimeType = getSupportedRecordingMimeType();
+  try {
+    if (mimeType) {
+      return new MediaRecorder(stream, { mimeType });
+    }
+    return new MediaRecorder(stream);
+  } catch {
+    return null;
+  }
+}
+
+function startRenderExport() {
+  if (!canvas.captureStream) {
+    alert("Video export requires canvas capture support in this browser.");
+    return;
+  }
+
+  const cfg = config();
+  const maxDuration = Math.min(60, Math.max(1, Number($("recordDuration").value) || 5));
+  const recordingStream = canvas.captureStream(30);
+  const recorder = createMediaRecorder(recordingStream);
+
+  if (!recorder) {
+    alert("Video export is not supported in this browser.");
+    return;
+  }
+
+  const recordedChunks = [];
+  let recordingStopped = false;
+  let exportButton = $("exportBtn");
+
+  exportButton.disabled = true;
+  exportButton.textContent = "Recording...";
+  paused = false;
+  restart();
+
+  recorder.ondataavailable = (event) => {
+    if (event.data && event.data.size > 0) {
+      recordedChunks.push(event.data);
+    }
+  };
+
+  recorder.onstop = () => {
+    if (recordedChunks.length) {
+      const blob = new Blob(recordedChunks, { type: recorder.mimeType });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${cfg.effectId || "particle-render"}.webm`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    }
+    exportButton.disabled = false;
+    exportButton.textContent = "Export";
+    recordingStopped = true;
+  };
+
+  recorder.start();
+  const recordingStart = performance.now();
+  const maxEndTime = recordingStart + maxDuration * 1000;
+
+  const checkRecording = () => {
+    if (recordingStopped) return;
+
+    const now = performance.now();
+    const elapsed = (now - recordingStart) / 1000;
+    const noParticlesLeft = cfg.burst && particles.length === 0 && burstDone;
+    const shouldStop = noParticlesLeft || now >= maxEndTime;
+
+    if (shouldStop) {
+      recorder.stop();
+      return;
+    }
+    requestAnimationFrame(checkRecording);
+  };
+
+  checkRecording();
+}
+
 function setCurveData(curveName, keys) {
   if (!Array.isArray(keys)) return;
   curves[curveName] = structuredClone(keys);
@@ -991,6 +1098,26 @@ function setup() {
       showImportStatus(error.message || "Could not import YAML.", true);
     }
   });
+  $("copyYaml").addEventListener("click", async () => {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(yamlOutput.value);
+    } else {
+      yamlOutput.select();
+      document.execCommand("copy");
+    }
+    $("copyYaml").textContent = "Copied";
+    setTimeout(() => $("copyYaml").textContent = "Copy", 900);
+  });
+  $("downloadYaml").addEventListener("click", () => {
+    const blob = new Blob([yamlOutput.value], { type: "text/yaml" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${config().effectId}.yml`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  });
+  $("exportBtn").addEventListener("click", startRenderExport);
   $("copyYaml").addEventListener("click", async () => {
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(yamlOutput.value);
