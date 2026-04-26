@@ -72,6 +72,16 @@
         </div>
         <div class="split">
           <div class="field-row">
+            <label for="shader">Shader</label>
+            <input id="shader" type="text" placeholder="Optional shader override">
+          </div>
+          <div class="field-row">
+            <label for="renderLayer">Render layer</label>
+            <input id="renderLayer" type="number" step="1" value="0">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
             <label for="startColor">Start color</label>
             <input id="startColor" type="color" value="#ffee88">
           </div>
@@ -246,6 +256,14 @@
             <label><input id="enableAlphaCurve" type="checkbox" checked> Include</label>
           </div>
           <div class="curve-editor" data-curve="alpha"></div>
+        </div>
+        <div class="curve-card">
+          <div class="curve-title">
+            <strong>Color over lifetime</strong>
+            <label><input id="enableColorCurve" type="checkbox"> Include</label>
+          </div>
+          <div class="color-curve-editor" id="colorCurveEditor"></div>
+          <button id="addColorStop" class="wide-button" type="button">Add color stop</button>
         </div>
       </section>
 

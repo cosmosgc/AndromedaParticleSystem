@@ -6,9 +6,9 @@ A web-based tool for building and previewing particle effects for [Space Station
 
 - **Real-time Preview**: Visualize particle effects on an interactive canvas with grid overlay and particle count statistics.
 - **Interactive Editor**: Modify effect properties through intuitive tabs:
-  - **Basic**: Set sprite, lifetime, size, and emission parameters.
+  - **Basic**: Set sprite, shader, render layer, lifetime, size, emission, and world-space parameters.
   - **Motion**: Configure movement, rotation, and direction settings.
-  - **Curves**: Define curves for size, color, alpha, and other properties over lifetime.
+  - **Curves**: Define curves for size, speed, alpha, and multi-stop color over particle lifetime.
   - **YAML**: View and edit the raw YAML configuration directly.
 - **Preset Effects**: Load predefined particle effects as starting points.
 - **Export Functionality**: Generate ready-to-paste YAML code for SS14 particle prototypes.
@@ -31,8 +31,10 @@ A web-based tool for building and previewing particle effects for [Space Station
 2. Select a preset effect from the dropdown or start with a blank effect.
 3. Use the editor tabs to adjust properties:
    - Modify basic parameters like sprite path, lifetime, and emission rate.
+   - Toggle `worldSpace` depending on whether particles should stay in world coordinates or remain relative to the emitting entity.
+   - Set optional export-only values like `shader` and `renderLayer`.
    - Configure motion settings for velocity, acceleration, and rotation.
-   - Define curves for dynamic properties over the particle's lifetime.
+   - Define curves for dynamic properties over the particle's lifetime, including `colorOverLifetime`.
    - Edit the YAML directly for advanced configurations.
 4. Preview the effect on the canvas in real-time.
 5. Use the control buttons to pause, restart, or burst the effect.
@@ -44,6 +46,15 @@ A web-based tool for building and previewing particle effects for [Space Station
 - `styles.css`: Styling for the application interface.
 - `app.js`: JavaScript logic for the particle system simulation and editor functionality.
 - `Particles.md`: Documentation for the SS14 particle system framework.
+
+## YAML Coverage Notes
+
+The preview simulates the visual and motion properties that can be represented on the canvas. Some SS14 fields are still useful even when they do not change the browser preview:
+
+- `worldSpace`: Exported as YAML. In-game, `true` keeps particles in world space so they trail behind moving emitters; `false` keeps them relative to the emitter/entity.
+- `shader`: Exported as YAML when set, but does not alter the canvas preview.
+- `renderLayer`: Exported as YAML when non-zero, but does not alter the canvas preview.
+- `colorOverLifetime`: Exported as a multi-stop gradient and also sampled by the preview when enabled. When enabled, it overrides the simple `startColor` to `endColor` lerp.
 
 ## Technologies Used
 

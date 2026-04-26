@@ -281,6 +281,26 @@ input[type="checkbox"] {
   text-align: right;
 }
 
+.color-curve-row {
+  display: grid;
+  grid-template-columns: 72px 52px minmax(0, 1fr) 36px;
+  align-items: end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.color-curve-row input[type="color"] {
+  min-height: 36px;
+}
+
+.color-curve-row button {
+  padding: 0;
+}
+
+.wide-button {
+  width: 100%;
+}
+
 .yaml-actions {
   justify-content: flex-end;
   margin-bottom: 12px;

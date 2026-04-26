@@ -303,7 +303,15 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 90,
-    rotationSpeedVariance: 45
+    rotationSpeedVariance: 45,
+    colorOverLifetime: [
+      { time: 0, color: "#ff6ab7", alpha: 0.95 },
+      { time: 0.45, color: "#9f7cff", alpha: 0.85 },
+      { time: 0.8, color: "#ffc857", alpha: 0.55 },
+      { time: 1, color: "#ffffff", alpha: 0 }
+    ],
+    shader: "unshaded",
+    renderLayer: 1
   },
   "Heart flutter": {
     effectId: "HeartFlutter",
@@ -575,7 +583,14 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 35,
-    rotationSpeedVariance: 25
+    rotationSpeedVariance: 25,
+    colorOverLifetime: [
+      { time: 0, color: "#5ee7ff", alpha: 0.75 },
+      { time: 0.5, color: "#ffffff", alpha: 0.65 },
+      { time: 1, color: "#fff1a3", alpha: 0 }
+    ],
+    shader: "unshaded",
+    renderLayer: 2
   },
   "Ion burst": {
     effectId: "IonBurst",

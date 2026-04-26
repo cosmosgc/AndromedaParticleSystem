@@ -6,7 +6,7 @@ const stats = $("stats");
 const yamlOutput = $("yamlOutput");
 
 const fields = [
-  "effectId", "spritePath", "spriteState", "startColor", "endColor", "startAlpha", "endAlpha",
+  "effectId", "spritePath", "spriteState", "shader", "renderLayer", "startColor", "endColor", "startAlpha", "endAlpha",
   "particleSize", "sizeVariance", "lifetime", "lifetimeVariance", "maxCount", "emissionRate",
   "speed", "speedVariance", "emitAngle", "spreadAngle", "gravity", "drag", "terminalSpeed",
   "stretchFactor", "forceX", "forceY", "noiseStrength", "noiseFrequency", "shapeType",
@@ -15,7 +15,7 @@ const fields = [
 
 const checkFields = [
   "burst", "worldSpace", "ignoreQualitySettings",
-  "enableSizeCurve", "enableSpeedCurve", "enableAlphaCurve"
+  "enableSizeCurve", "enableSpeedCurve", "enableAlphaCurve", "enableColorCurve"
 ];
 
 const curveDefaults = {
@@ -30,6 +30,11 @@ const curveDefaults = {
   alpha: [
     { time: 0, value: 1 },
     { time: 1, value: 0 }
+  ],
+  color: [
+    { time: 0, color: "#ffee88", alpha: 1 },
+    { time: 0.6, color: "#ff8800", alpha: 0.8 },
+    { time: 1, color: "#ff0000", alpha: 0 }
   ]
 };
 
@@ -42,6 +47,7 @@ let emitterAge = 0;
 let lastTime = performance.now();
 let paused = false;
 let burstDone = false;
+const spriteCache = new Map();
 
 function number(id) {
   return Number($(id).value) || 0;
@@ -52,6 +58,8 @@ function config() {
     effectId: $("effectId").value.trim() || "MyParticleEffect",
     spritePath: $("spritePath").value.trim(),
     spriteState: $("spriteState").value.trim(),
+    shader: $("shader").value.trim(),
+    renderLayer: Math.floor(number("renderLayer")),
     startColor: $("startColor").value,
     endColor: $("endColor").value,
     startAlpha: number("startAlpha"),
@@ -101,9 +109,112 @@ function rgbToCss(color) {
   return `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a})`;
 }
 
+function normalizeAssetPath(path) {
+  return path.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+function spriteKey(path, state) {
+  return `${normalizeAssetPath(path)}::${state.trim()}`;
+}
+
+function spriteCandidates(path, state) {
+  const normalizedPath = normalizeAssetPath(path);
+  const normalizedState = state.trim();
+  if (!normalizedPath) return [];
+
+  if (/\.(png|webp|jpe?g|gif)$/i.test(normalizedPath)) {
+    return [normalizedPath];
+  }
+
+  const base = normalizedPath.replace(/\/$/, "");
+  if (/\.rsi$/i.test(base)) {
+    return [
+      `${base}/${normalizedState}.png`,
+      `${base}/${normalizedState}/0.png`,
+      `${base}/${normalizedState}/${normalizedState}.png`
+    ];
+  }
+
+  return [
+    `${base}/${normalizedState}.png`,
+    `${base}.png`,
+    base
+  ];
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener("error", reject, { once: true });
+    image.src = encodeURI(url);
+  });
+}
+
+async function loadSpriteMeta(path, state) {
+  const normalizedPath = normalizeAssetPath(path).replace(/\/$/, "");
+  if (!/\.rsi$/i.test(normalizedPath)) return null;
+
+  try {
+    const response = await fetch(encodeURI(`${normalizedPath}/meta.json`));
+    if (!response.ok) return null;
+    const meta = await response.json();
+    const size = meta.size;
+    const stateMeta = Array.isArray(meta.states)
+      ? meta.states.find((entry) => entry.name === state)
+      : null;
+
+    if (!size || !Number(size.x) || !Number(size.y)) return null;
+    return {
+      width: Number(size.x),
+      height: Number(size.y),
+      directions: Number(stateMeta?.directions) || 1
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function loadSprite(path, state) {
+  const meta = await loadSpriteMeta(path, state);
+  const candidates = spriteCandidates(path, state);
+
+  for (const url of candidates) {
+    try {
+      const image = await loadImage(url);
+      return {
+        image,
+        frame: meta
+          ? { x: 0, y: 0, width: meta.width, height: meta.height }
+          : { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }
+      };
+    } catch {
+      // Try the next common sprite location before falling back to procedural particles.
+    }
+  }
+
+  return null;
+}
+
+function getSpritePreview(cfg) {
+  const key = spriteKey(cfg.spritePath, cfg.spriteState);
+  const cached = spriteCache.get(key);
+  if (cached?.status === "ready") return cached.sprite;
+  if (cached?.status === "error" || cached?.status === "loading") return null;
+
+  spriteCache.set(key, { status: "loading", sprite: null });
+  loadSprite(cfg.spritePath, cfg.spriteState).then((sprite) => {
+    spriteCache.set(key, sprite
+      ? { status: "ready", sprite }
+      : { status: "error", sprite: null });
+  });
+  return null;
+}
+
 function colorAt(cfg, t) {
-  const a = hexToRgb(cfg.startColor, cfg.startAlpha);
-  const b = hexToRgb(cfg.endColor, cfg.endAlpha);
+  const gradient = $("enableColorCurve").checked ? sampleColorCurve(curves.color, t) : null;
+  const a = gradient || hexToRgb(cfg.startColor, cfg.startAlpha);
+  const b = gradient || hexToRgb(cfg.endColor, cfg.endAlpha);
   const alphaMul = $("enableAlphaCurve").checked ? sampleCurve(curves.alpha, t) : 1;
   return {
     r: Math.round(lerp(a.r, b.r, t)),
@@ -111,6 +222,39 @@ function colorAt(cfg, t) {
     b: Math.round(lerp(a.b, b.b, t)),
     a: clamp(lerp(a.a, b.a, t) * alphaMul, 0, 1)
   };
+}
+
+function sampleColorCurve(keys, t) {
+  const sorted = keys
+    .filter((key) => key.color)
+    .map((key) => ({ ...key, time: Number(key.time), alpha: Number(key.alpha) }))
+    .filter((key) => Number.isFinite(key.time) && Number.isFinite(key.alpha))
+    .sort((a, b) => a.time - b.time);
+
+  if (!sorted.length) return null;
+  if (t <= sorted[0].time) return hexToRgb(sorted[0].color, sorted[0].alpha);
+  if (t >= sorted[sorted.length - 1].time) {
+    const last = sorted[sorted.length - 1];
+    return hexToRgb(last.color, last.alpha);
+  }
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    if (t >= a.time && t <= b.time) {
+      const local = (t - a.time) / Math.max(0.0001, b.time - a.time);
+      const start = hexToRgb(a.color, a.alpha);
+      const end = hexToRgb(b.color, b.alpha);
+      return {
+        r: Math.round(lerp(start.r, end.r, local)),
+        g: Math.round(lerp(start.g, end.g, local)),
+        b: Math.round(lerp(start.b, end.b, local)),
+        a: lerp(start.a, end.a, local)
+      };
+    }
+  }
+
+  return null;
 }
 
 function lerp(a, b, t) {
@@ -269,6 +413,7 @@ function update(dt) {
 
 function draw() {
   const cfg = config();
+  const sprite = getSpritePreview(cfg);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
@@ -286,19 +431,47 @@ function draw() {
     ctx.translate(pos.x, pos.y);
     ctx.rotate(angle + particle.rotation * Math.PI / 180);
     ctx.scale(stretch, 1);
-    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-    gradient.addColorStop(0, rgbToCss({ ...color, a: color.a }));
-    gradient.addColorStop(0.65, rgbToCss({ ...color, a: color.a * 0.45 }));
-    gradient.addColorStop(1, rgbToCss({ ...color, a: 0 }));
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.fill();
+    if (sprite) {
+      drawSpriteParticle(sprite, color, radius);
+    } else {
+      drawProceduralParticle(color, radius);
+    }
     ctx.restore();
   }
   ctx.restore();
 
   drawEmitterShape(cfg);
+}
+
+function drawProceduralParticle(color, radius) {
+  const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+  gradient.addColorStop(0, rgbToCss({ ...color, a: color.a }));
+  gradient.addColorStop(0.65, rgbToCss({ ...color, a: color.a * 0.45 }));
+  gradient.addColorStop(1, rgbToCss({ ...color, a: 0 }));
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawSpriteParticle(sprite, color, radius) {
+  const { image, frame } = sprite;
+  const frameSize = Math.max(frame.width, frame.height);
+  const width = radius * 2 * (frame.width / frameSize);
+  const height = radius * 2 * (frame.height / frameSize);
+
+  ctx.globalAlpha *= color.a;
+  ctx.drawImage(
+    image,
+    frame.x,
+    frame.y,
+    frame.width,
+    frame.height,
+    -width / 2,
+    -height / 2,
+    width,
+    height
+  );
 }
 
 function drawEmitterShape(cfg) {
@@ -344,6 +517,16 @@ function yamlCurve(name, keys, indent = 2) {
   return [
     `${spaces}${name}:`,
     ...keys.map((key) => `${itemSpaces}- time: ${round(key.time)}\n${itemSpaces}  value: ${round(key.value)}`)
+  ];
+}
+
+function yamlColorCurve(name, keys, indent = 2) {
+  const spaces = " ".repeat(indent);
+  const itemSpaces = " ".repeat(indent + 2);
+  const sorted = [...keys].sort((a, b) => a.time - b.time);
+  return [
+    `${spaces}${name}:`,
+    ...sorted.map((key) => `${itemSpaces}- time: ${round(key.time)}\n${itemSpaces}  color: ${hexWithAlpha(key.color, key.alpha)}`)
   ];
 }
 
@@ -473,12 +656,35 @@ function importCurve(yaml, key, curveName, checkboxId) {
   }
 }
 
+function importColorCurve(yaml) {
+  if (!Array.isArray(yaml.colorOverLifetime)) {
+    setField("enableColorCurve", false);
+    return;
+  }
+
+  const imported = yaml.colorOverLifetime
+    .map((entry) => {
+      const parsed = parseColor(entry.color);
+      return parsed ? { time: Number(entry.time), color: parsed.color, alpha: parsed.alpha } : null;
+    })
+    .filter((entry) => entry && Number.isFinite(entry.time))
+    .sort((a, b) => a.time - b.time);
+
+  if (imported.length) {
+    curves.color = imported;
+    setField("enableColorCurve", true);
+  }
+}
+
 function importYamlFromText(text) {
   const yaml = parseYamlMap(text);
   if (yaml.type !== "particleEffect") {
     throw new Error("No particleEffect prototype found.");
   }
 
+  curves = structuredClone(curveDefaults);
+  setField("shader", "");
+  setField("renderLayer", 0);
   setField("effectId", yaml.id);
   if (yaml.sprite && typeof yaml.sprite === "object") {
     setField("spritePath", yaml.sprite.sprite);
@@ -517,8 +723,10 @@ function importYamlFromText(text) {
     "particleSize", "sizeVariance", "lifetime", "lifetimeVariance", "speed", "speedVariance",
     "gravity", "drag", "spreadAngle", "emitAngle", "maxCount", "emissionRate",
     "terminalSpeed", "stretchFactor", "noiseStrength", "noiseFrequency",
-    "rotationSpeed", "rotationSpeedVariance"
+    "rotationSpeed", "rotationSpeedVariance", "renderLayer"
   ].forEach((key) => setField(key, yaml[key]));
+
+  setField("shader", yaml.shader || "");
 
   ["burst", "worldSpace", "ignoreQualitySettings"].forEach((key) => {
     if (key in yaml) setField(key, yaml[key]);
@@ -545,7 +753,9 @@ function importYamlFromText(text) {
   importCurve(yaml, "sizeOverLifetime", "size", "enableSizeCurve");
   importCurve(yaml, "speedOverLifetime", "speed", "enableSpeedCurve");
   importCurve(yaml, "alphaOverLifetime", "alpha", "enableAlphaCurve");
+  importColorCurve(yaml);
   renderCurveEditors();
+  renderColorCurveEditor();
   restart();
   generateYaml();
 }
@@ -586,6 +796,8 @@ function generateYaml() {
     line("worldSpace", cfg.worldSpace)
   ];
 
+  if (cfg.shader) output.push(line("shader", cfg.shader));
+  if (cfg.renderLayer !== 0) output.push(line("renderLayer", cfg.renderLayer));
   if (cfg.ignoreQualitySettings) output.push(line("ignoreQualitySettings", true));
   if (cfg.terminalSpeed > 0) output.push(line("terminalSpeed", round(cfg.terminalSpeed)));
   if (cfg.stretchFactor > 0) output.push(line("stretchFactor", round(cfg.stretchFactor)));
@@ -610,6 +822,7 @@ function generateYaml() {
   if ($("enableSizeCurve").checked) output.push(...yamlCurve("sizeOverLifetime", curves.size));
   if ($("enableSpeedCurve").checked) output.push(...yamlCurve("speedOverLifetime", curves.speed));
   if ($("enableAlphaCurve").checked) output.push(...yamlCurve("alphaOverLifetime", curves.alpha));
+  if ($("enableColorCurve").checked) output.push(...yamlColorCurve("colorOverLifetime", curves.color));
 
   yamlOutput.value = output.join("\n") + "\n";
 }
@@ -637,8 +850,65 @@ function renderCurveEditors() {
   });
 }
 
+function renderColorCurveEditor() {
+  const editor = $("colorCurveEditor");
+  editor.innerHTML = "";
+  curves.color
+    .sort((a, b) => a.time - b.time)
+    .forEach((key, index) => {
+      const row = document.createElement("div");
+      row.className = "color-curve-row";
+      row.innerHTML = `
+        <input aria-label="Color stop time" type="number" min="0" max="1" step="0.05" value="${round(key.time)}">
+        <input aria-label="Color stop color" type="color" value="${key.color}">
+        <input aria-label="Color stop alpha" type="range" min="0" max="1" step="0.01" value="${key.alpha}">
+        <button type="button" title="Remove color stop">x</button>
+      `;
+
+      const [timeInput, colorInput, alphaInput] = row.querySelectorAll("input");
+      const removeButton = row.querySelector("button");
+      const update = () => {
+        curves.color[index] = {
+          time: clamp(Number(timeInput.value), 0, 1),
+          color: colorInput.value,
+          alpha: clamp(Number(alphaInput.value), 0, 1)
+        };
+        generateYaml();
+      };
+
+      timeInput.addEventListener("input", update);
+      colorInput.addEventListener("input", update);
+      alphaInput.addEventListener("input", update);
+      removeButton.addEventListener("click", () => {
+        if (curves.color.length <= 1) return;
+        curves.color.splice(index, 1);
+        renderColorCurveEditor();
+        generateYaml();
+      });
+      editor.appendChild(row);
+    });
+}
+
+function addColorStop() {
+  curves.color.push({ time: 0.5, color: "#ffffff", alpha: 1 });
+  renderColorCurveEditor();
+  generateYaml();
+}
+
+function setCurveData(curveName, keys) {
+  if (!Array.isArray(keys)) return;
+  curves[curveName] = structuredClone(keys);
+}
+
 function applyPreset(name) {
   const preset = presets[name];
+  curves = structuredClone(curveDefaults);
+  setField("shader", "");
+  setField("renderLayer", 0);
+  setField("enableSizeCurve", true);
+  setField("enableSpeedCurve", true);
+  setField("enableAlphaCurve", true);
+  setField("enableColorCurve", false);
   for (const [key, value] of Object.entries(preset)) {
     const element = $(key);
     if (!element) continue;
@@ -648,6 +918,13 @@ function applyPreset(name) {
       element.value = value;
     }
   }
+  setCurveData("size", preset.sizeOverLifetime);
+  setCurveData("speed", preset.speedOverLifetime);
+  setCurveData("alpha", preset.alphaOverLifetime);
+  setCurveData("color", preset.colorOverLifetime);
+  if (Array.isArray(preset.colorOverLifetime)) setField("enableColorCurve", true);
+  renderCurveEditors();
+  renderColorCurveEditor();
   restart();
   generateYaml();
 }
@@ -682,6 +959,7 @@ function setup() {
   });
 
   $("preset").addEventListener("change", () => applyPreset($("preset").value));
+  $("addColorStop").addEventListener("click", addColorStop);
   $("pauseBtn").addEventListener("click", () => {
     paused = !paused;
     $("pauseBtn").textContent = paused ? "Resume" : "Pause";
@@ -734,6 +1012,7 @@ function setup() {
   });
 
   renderCurveEditors();
+  renderColorCurveEditor();
   applyPreset("Grenade sparks");
   requestAnimationFrame(tick);
 }
