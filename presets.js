@@ -1,7 +1,7 @@
 window.particlePresets = {
   "Grenade sparks": {
     effectId: "GrenadeSparks",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "spark",
     startColor: "#ffee88",
     endColor: "#ff4400",
@@ -35,7 +35,7 @@ window.particlePresets = {
   },
   "Muzzle flash": {
     effectId: "MuzzleFlash",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "muzzle",
     startColor: "#fff2a8",
     endColor: "#ff6a00",
@@ -69,7 +69,7 @@ window.particlePresets = {
   },
   "Smoke puff": {
     effectId: "SmokePuff",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "smoke",
     startColor: "#9aa3a8",
     endColor: "#30363a",
@@ -103,7 +103,7 @@ window.particlePresets = {
   },
   "Box field": {
     effectId: "BoxField",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "dot",
     startColor: "#70d7ff",
     endColor: "#52d6a0",
@@ -137,7 +137,7 @@ window.particlePresets = {
   },
   "Arc welder": {
     effectId: "ArcWelder",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "spark",
     startColor: "#b9f7ff",
     endColor: "#2b7cff",
@@ -171,7 +171,7 @@ window.particlePresets = {
   },
   "Cryo mist": {
     effectId: "CryoMist",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "smoke",
     startColor: "#d9fbff",
     endColor: "#73a8ff",
@@ -205,7 +205,7 @@ window.particlePresets = {
   },
   "Plasma vent": {
     effectId: "PlasmaVent",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "smoke",
     startColor: "#d566ff",
     endColor: "#2de0a7",
@@ -239,7 +239,7 @@ window.particlePresets = {
   },
   "Med scanner pulse": {
     effectId: "MedScannerPulse",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "dot",
     startColor: "#6dffb8",
     endColor: "#ffffff",
@@ -273,7 +273,7 @@ window.particlePresets = {
   },
   "Magic circle": {
     effectId: "MagicCircle",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "spark",
     startColor: "#ff6ab7",
     endColor: "#ffc857",
@@ -315,7 +315,7 @@ window.particlePresets = {
   },
   "Heart flutter": {
     effectId: "HeartFlutter",
-    spritePath: "Effects/hearts.rsi",
+    spritePath: "effects/hearts.rsi",
     spriteState: "small-heart",
     startColor: "#ff6f9f",
     endColor: "#ffd1dc",
@@ -349,7 +349,7 @@ window.particlePresets = {
   },
   "Rain streaks": {
     effectId: "RainStreaks",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "dot",
     startColor: "#a9d8ff",
     endColor: "#4f9edb",
@@ -383,7 +383,7 @@ window.particlePresets = {
   },
   "Blood mist": {
     effectId: "BloodMist",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "smoke",
     startColor: "#b5162a",
     endColor: "#3d0710",
@@ -417,7 +417,7 @@ window.particlePresets = {
   },
   "Steam jet": {
     effectId: "SteamJet",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "smoke",
     startColor: "#eef6f8",
     endColor: "#8f9fa6",
@@ -451,7 +451,7 @@ window.particlePresets = {
   },
   "Ember drift": {
     effectId: "EmberDrift",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "spark",
     startColor: "#ffb347",
     endColor: "#ff2c1c",
@@ -485,7 +485,7 @@ window.particlePresets = {
   },
   "Toxic bubbles": {
     effectId: "ToxicBubbles",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "dot",
     startColor: "#b6ff3d",
     endColor: "#24b86f",
@@ -519,7 +519,7 @@ window.particlePresets = {
   },
   "Snow fall": {
     effectId: "SnowFall",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "dot",
     startColor: "#ffffff",
     endColor: "#b7d7ff",
@@ -553,7 +553,7 @@ window.particlePresets = {
   },
   "Shield shimmer": {
     effectId: "ShieldShimmer",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "dot",
     startColor: "#5ee7ff",
     endColor: "#fff1a3",
@@ -594,7 +594,7 @@ window.particlePresets = {
   },
   "Ion burst": {
     effectId: "IonBurst",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "spark",
     startColor: "#68fff0",
     endColor: "#944dff",
@@ -628,7 +628,7 @@ window.particlePresets = {
   },
   "Bean bloom": {
     effectId: "BeanBloom",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "dot",
     startColor: "#9df57f",
     endColor: "#2f9f44",
@@ -662,7 +662,7 @@ window.particlePresets = {
   },
   "Fountain spray": {
     effectId: "FountainSpray",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "spark",
     startColor: "#a8d4ff",
     endColor: "#4a86d8",
@@ -696,7 +696,7 @@ window.particlePresets = {
   },
   "Golden fountain": {
     effectId: "GoldenFountain",
-    spritePath: "Effects/particles.rsi",
+    spritePath: "effects/particles.rsi",
     spriteState: "smoke",
     startColor: "#ffe58f",
     endColor: "#d89b21",

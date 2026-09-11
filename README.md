@@ -54,7 +54,8 @@ The preview simulates the visual and motion properties that can be represented o
 - `worldSpace`: Exported as YAML. In-game, `true` keeps particles in world space so they trail behind moving emitters; `false` keeps them relative to the emitter/entity.
 - `shader`: Exported as YAML when set, but does not alter the canvas preview.
 - `renderLayer`: Exported as YAML when non-zero, but does not alter the canvas preview.
-- `colorOverLifetime`: Exported as a multi-stop gradient and also sampled by the preview when enabled. When enabled, it overrides the simple `startColor` to `endColor` lerp.
+- `duration`: Exported as the emitter run time. `0` means infinite emission; non-zero values stop new particles after that many seconds.
+- `colorOverLifetime`: Always exported as the final color data and edited directly in the main settings panel.
 
 ## Technologies Used
 

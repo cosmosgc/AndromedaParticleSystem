@@ -6,8 +6,8 @@ const stats = $("stats");
 const yamlOutput = $("yamlOutput");
 
 const fields = [
-  "effectId", "spritePath", "spriteState", "shader", "renderLayer", "startColor", "endColor", "startAlpha", "endAlpha",
-  "particleSize", "sizeVariance", "lifetime", "lifetimeVariance", "maxCount", "emissionRate",
+  "effectId", "spritePath", "spriteState", "shader", "renderLayer",
+  "particleSize", "sizeVariance", "lifetime", "lifetimeVariance", "duration", "maxCount", "emissionRate",
   "speed", "speedVariance", "emitAngle", "spreadAngle", "gravity", "drag", "terminalSpeed",
   "stretchFactor", "forceX", "forceY", "noiseStrength", "noiseFrequency", "shapeType",
   "shapeRadius", "boxX", "boxY", "rotationSpeed", "rotationSpeedVariance"
@@ -15,7 +15,7 @@ const fields = [
 
 const checkFields = [
   "burst", "worldSpace", "ignoreQualitySettings",
-  "enableSizeCurve", "enableSpeedCurve", "enableAlphaCurve", "enableColorCurve"
+  "enableSizeCurve", "enableSpeedCurve", "enableAlphaCurve"
 ];
 
 const curveDefaults = {
@@ -50,6 +50,8 @@ let burstDone = false;
 const spriteCache = new Map();
 const tintCanvas = document.createElement("canvas");
 const tintCtx = tintCanvas.getContext("2d");
+let customSprite = null;
+let customSpriteUrl = null;
 
 function number(id) {
   return Number($(id).value) || 0;
@@ -62,14 +64,11 @@ function config() {
     spriteState: $("spriteState").value.trim(),
     shader: $("shader").value.trim(),
     renderLayer: Math.floor(number("renderLayer")),
-    startColor: $("startColor").value,
-    endColor: $("endColor").value,
-    startAlpha: number("startAlpha"),
-    endAlpha: number("endAlpha"),
     particleSize: Math.max(0.01, number("particleSize")),
     sizeVariance: number("sizeVariance"),
     lifetime: Math.max(0.05, number("lifetime")),
     lifetimeVariance: number("lifetimeVariance"),
+    duration: Math.max(0, number("duration")),
     maxCount: Math.max(1, Math.floor(number("maxCount"))),
     emissionRate: Math.max(0, number("emissionRate")),
     burst: $("burst").checked,
@@ -199,6 +198,8 @@ async function loadSprite(path, state) {
 }
 
 function getSpritePreview(cfg) {
+  if (customSprite?.status === "ready") return customSprite.sprite;
+  if (customSprite?.status === "loading") return null;
   const key = spriteKey(cfg.spritePath, cfg.spriteState);
   const cached = spriteCache.get(key);
   if (cached?.status === "ready") return cached.sprite;
@@ -213,16 +214,55 @@ function getSpritePreview(cfg) {
   return null;
 }
 
+function setCustomSpriteStatus(message, isError = false) {
+  const status = $("customSpriteStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("error", isError);
+}
+
+function setCustomSprite(file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    setCustomSpriteStatus(`"${file.name}" is not an image.`, true);
+    return;
+  }
+  if (customSpriteUrl) URL.revokeObjectURL(customSpriteUrl);
+  customSpriteUrl = URL.createObjectURL(file);
+  customSprite = { status: "loading", sprite: null };
+  setCustomSpriteStatus(`Loading "${file.name}"...`);
+  loadImage(customSpriteUrl).then((image) => {
+    customSprite = {
+      status: "ready",
+      sprite: {
+        image,
+        frame: { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }
+      }
+    };
+    setCustomSpriteStatus(`Using "${file.name}" for preview only — YAML still uses the RSI path.`);
+  }).catch(() => {
+    customSprite = { status: "error", sprite: null };
+    setCustomSpriteStatus(`Could not load "${file.name}".`, true);
+  });
+}
+
+function clearCustomSprite() {
+  if (customSpriteUrl) URL.revokeObjectURL(customSpriteUrl);
+  customSpriteUrl = null;
+  customSprite = null;
+  const input = $("customSprite");
+  if (input) input.value = "";
+  setCustomSpriteStatus("No custom image — using RSI path.");
+}
+
 function colorAt(cfg, t) {
-  const gradient = $("enableColorCurve").checked ? sampleColorCurve(curves.color, t) : null;
-  const a = gradient || hexToRgb(cfg.startColor, cfg.startAlpha);
-  const b = gradient || hexToRgb(cfg.endColor, cfg.endAlpha);
+  const gradient = sampleColorCurve(curves.color, t) || hexToRgb("#ffffff", 1);
   const alphaMul = $("enableAlphaCurve").checked ? sampleCurve(curves.alpha, t) : 1;
   return {
-    r: Math.round(lerp(a.r, b.r, t)),
-    g: Math.round(lerp(a.g, b.g, t)),
-    b: Math.round(lerp(a.b, b.b, t)),
-    a: clamp(lerp(a.a, b.a, t) * alphaMul, 0, 1)
+    r: gradient.r,
+    g: gradient.g,
+    b: gradient.b,
+    a: clamp(gradient.a * alphaMul, 0, 1)
   };
 }
 
@@ -370,7 +410,8 @@ function update(dt) {
     burstDone = true;
   }
 
-  if (!cfg.burst && cfg.emissionRate > 0) {
+  const isEmitterActive = cfg.duration === 0 || emitterAge <= cfg.duration;
+  if (!cfg.burst && cfg.emissionRate > 0 && isEmitterActive) {
     accumulator += cfg.emissionRate * dt;
     const count = Math.floor(accumulator);
     if (count > 0) {
@@ -541,6 +582,23 @@ function yamlColorCurve(name, keys, indent = 2) {
   ];
 }
 
+function colorKeysForYaml() {
+  return curves.color.length
+    ? curves.color
+    : curveDefaults.color;
+}
+
+function colorCurveFromLegacy(startColor, endColor) {
+  const start = parseColor(startColor);
+  const end = parseColor(endColor);
+  if (!start && !end) return null;
+
+  return [
+    { time: 0, color: start?.color || end.color, alpha: start?.alpha ?? end.alpha },
+    { time: 1, color: end?.color || start.color, alpha: end?.alpha ?? start.alpha }
+  ];
+}
+
 function parseScalar(value) {
   const trimmed = value.trim().replace(/\s+#.*$/, "");
   if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
@@ -669,8 +727,7 @@ function importCurve(yaml, key, curveName, checkboxId) {
 
 function importColorCurve(yaml) {
   if (!Array.isArray(yaml.colorOverLifetime)) {
-    setField("enableColorCurve", false);
-    return;
+    return false;
   }
 
   const imported = yaml.colorOverLifetime
@@ -683,8 +740,9 @@ function importColorCurve(yaml) {
 
   if (imported.length) {
     curves.color = imported;
-    setField("enableColorCurve", true);
+    return true;
   }
+  return false;
 }
 
 function importYamlFromText(text) {
@@ -696,42 +754,21 @@ function importYamlFromText(text) {
   curves = structuredClone(curveDefaults);
   setField("shader", "");
   setField("renderLayer", 0);
+  setField("duration", 0);
   setField("effectId", yaml.id);
   if (yaml.sprite && typeof yaml.sprite === "object") {
     setField("spritePath", yaml.sprite.sprite);
     setField("spriteState", yaml.sprite.state);
   }
 
-  const start = parseColor(yaml.startColor);
-  if (start) {
-    setField("startColor", start.color);
-    setField("startAlpha", round(start.alpha));
-  }
-
-  const end = parseColor(yaml.endColor);
-  if (end) {
-    setField("endColor", end.color);
-    setField("endAlpha", round(end.alpha));
-  }
-
-  if (Array.isArray(yaml.colorOverLifetime) && yaml.colorOverLifetime.length) {
-    const colors = yaml.colorOverLifetime
-      .map((entry) => ({ time: Number(entry.time), parsed: parseColor(entry.color) }))
-      .filter((entry) => Number.isFinite(entry.time) && entry.parsed)
-      .sort((a, b) => a.time - b.time);
-
-    if (colors[0]) {
-      setField("startColor", colors[0].parsed.color);
-      setField("startAlpha", round(colors[0].parsed.alpha));
-    }
-    if (colors[colors.length - 1]) {
-      setField("endColor", colors[colors.length - 1].parsed.color);
-      setField("endAlpha", round(colors[colors.length - 1].parsed.alpha));
-    }
+  const importedColorCurve = importColorCurve(yaml);
+  if (!importedColorCurve) {
+    const legacyColorCurve = colorCurveFromLegacy(yaml.startColor, yaml.endColor);
+    if (legacyColorCurve) curves.color = legacyColorCurve;
   }
 
   [
-    "particleSize", "sizeVariance", "lifetime", "lifetimeVariance", "speed", "speedVariance",
+    "particleSize", "sizeVariance", "lifetime", "lifetimeVariance", "duration", "speed", "speedVariance",
     "gravity", "drag", "spreadAngle", "emitAngle", "maxCount", "emissionRate",
     "terminalSpeed", "stretchFactor", "noiseStrength", "noiseFrequency",
     "rotationSpeed", "rotationSpeedVariance", "renderLayer"
@@ -764,7 +801,6 @@ function importYamlFromText(text) {
   importCurve(yaml, "sizeOverLifetime", "size", "enableSizeCurve");
   importCurve(yaml, "speedOverLifetime", "speed", "enableSpeedCurve");
   importCurve(yaml, "alphaOverLifetime", "alpha", "enableAlphaCurve");
-  importColorCurve(yaml);
   renderCurveEditors();
   renderColorCurveEditor();
   restart();
@@ -789,12 +825,11 @@ function generateYaml() {
     "  sprite:",
     line("sprite", cfg.spritePath, 4),
     line("state", cfg.spriteState, 4),
-    line("startColor", hexWithAlpha(cfg.startColor, cfg.startAlpha)),
-    line("endColor", hexWithAlpha(cfg.endColor, cfg.endAlpha)),
     line("particleSize", round(cfg.particleSize)),
     line("sizeVariance", round(cfg.sizeVariance)),
     line("lifetime", `${round(cfg.lifetime)}s`),
     line("lifetimeVariance", `${round(cfg.lifetimeVariance)}s`),
+    line("duration", cfg.duration === 0 ? 0 : `${round(cfg.duration)}s`),
     line("speed", round(cfg.speed)),
     line("speedVariance", round(cfg.speedVariance)),
     line("gravity", round(cfg.gravity)),
@@ -833,7 +868,7 @@ function generateYaml() {
   if ($("enableSizeCurve").checked) output.push(...yamlCurve("sizeOverLifetime", curves.size));
   if ($("enableSpeedCurve").checked) output.push(...yamlCurve("speedOverLifetime", curves.speed));
   if ($("enableAlphaCurve").checked) output.push(...yamlCurve("alphaOverLifetime", curves.alpha));
-  if ($("enableColorCurve").checked) output.push(...yamlColorCurve("colorOverLifetime", curves.color));
+  output.push(...yamlColorCurve("colorOverLifetime", colorKeysForYaml()));
 
   yamlOutput.value = output.join("\n") + "\n";
 }
@@ -1012,10 +1047,10 @@ function applyPreset(name) {
   curves = structuredClone(curveDefaults);
   setField("shader", "");
   setField("renderLayer", 0);
+  setField("duration", 0);
   setField("enableSizeCurve", true);
   setField("enableSpeedCurve", true);
   setField("enableAlphaCurve", true);
-  setField("enableColorCurve", false);
   for (const [key, value] of Object.entries(preset)) {
     const element = $(key);
     if (!element) continue;
@@ -1029,7 +1064,12 @@ function applyPreset(name) {
   setCurveData("speed", preset.speedOverLifetime);
   setCurveData("alpha", preset.alphaOverLifetime);
   setCurveData("color", preset.colorOverLifetime);
-  if (Array.isArray(preset.colorOverLifetime)) setField("enableColorCurve", true);
+  if (!Array.isArray(preset.colorOverLifetime)) {
+    const legacyStart = preset.startColor ? hexWithAlpha(preset.startColor, preset.startAlpha ?? 1) : null;
+    const legacyEnd = preset.endColor ? hexWithAlpha(preset.endColor, preset.endAlpha ?? 0) : null;
+    const legacyColorCurve = colorCurveFromLegacy(legacyStart, legacyEnd);
+    if (legacyColorCurve) curves.color = legacyColorCurve;
+  }
   renderCurveEditors();
   renderColorCurveEditor();
   restart();
@@ -1060,6 +1100,7 @@ function setup() {
       if (id === "maxCount" && particles.length > number("maxCount")) {
         particles = particles.slice(0, number("maxCount"));
       }
+      if (id === "duration") restart();
       generateYaml();
     });
     element.addEventListener("change", generateYaml);
@@ -1118,25 +1159,11 @@ function setup() {
     URL.revokeObjectURL(url);
   });
   $("exportBtn").addEventListener("click", startRenderExport);
-  $("copyYaml").addEventListener("click", async () => {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(yamlOutput.value);
-    } else {
-      yamlOutput.select();
-      document.execCommand("copy");
-    }
-    $("copyYaml").textContent = "Copied";
-    setTimeout(() => $("copyYaml").textContent = "Copy", 900);
+  $("customSprite").addEventListener("change", () => {
+    const file = $("customSprite").files[0];
+    if (file) setCustomSprite(file);
   });
-  $("downloadYaml").addEventListener("click", () => {
-    const blob = new Blob([yamlOutput.value], { type: "text/yaml" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${config().effectId}.yml`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  });
+  $("clearCustomSprite").addEventListener("click", clearCustomSprite);
 
   renderCurveEditors();
   renderColorCurveEditor();
