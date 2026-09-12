@@ -2,6 +2,10 @@
 
 A web-based tool for building and previewing particle effects for [Space Station 14](https://spacestation14.io/) (SS14). This application allows developers to create particle effects defined in YAML format, preview them in real-time on a canvas, and export the YAML configuration for use in the game.
 
+[Github Pages](https://cosmosgc.github.io/AndromedaParticleSystem/)
+
+<img width="1362" height="928" alt="image" src="https://github.com/user-attachments/assets/defb5292-30f0-4008-83af-bcba9b862a2d" />
+
 ## Features
 
 - **Real-time Preview**: Visualize particle effects on an interactive canvas with grid overlay and particle count statistics.
