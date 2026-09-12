@@ -5,18 +5,74 @@ const ctx = canvas.getContext("2d");
 const stats = $("stats");
 const yamlOutput = $("yamlOutput");
 
+const WORLD_SCALE = 96; // px per world unit, matches worldToCanvas
+
 const fields = [
   "effectId", "spritePath", "spriteState", "shader", "renderLayer",
   "particleSize", "sizeVariance", "lifetime", "lifetimeVariance", "duration", "maxCount", "emissionRate",
   "speed", "speedVariance", "emitAngle", "spreadAngle", "gravity", "drag", "terminalSpeed",
   "stretchFactor", "forceX", "forceY", "noiseStrength", "noiseFrequency", "shapeType",
-  "shapeRadius", "boxX", "boxY", "rotationSpeed", "rotationSpeedVariance"
+  "shapeRadius", "boxX", "boxY",
+  "startRotation", "startRotationVariance", "rotationSpeed", "rotationSpeedVariance",
+  "inheritVelocity", "spawnOffsetX", "spawnOffsetY",
+  "startColor", "startAlpha", "endColor", "endAlpha",
+  "subEmitterOnSpawn", "subEmitterOnDeath"
 ];
 
 const checkFields = [
-  "burst", "worldSpace", "ignoreQualitySettings",
-  "enableSizeCurve", "enableSpeedCurve", "enableAlphaCurve"
+  "burst", "worldSpace", "ignoreQualitySettings", "alignToVelocity",
+  "enableSizeCurve", "enableSpeedCurve", "enableAlphaCurve", "enableColorCurve",
+  "enableEmissionCurve", "enableForceCurve", "enableVelocityCurve"
 ];
+
+// Mirrors Content.Shared/_Starfall/Particles/ParticleEffectPrototype.cs defaults.
+const protoDefaults = {
+  effectId: "MyParticleEffect",
+  spritePath: "effects/particles.rsi",
+  spriteState: "spark",
+  shader: "",
+  renderLayer: 0,
+  particleSize: 0.2,
+  sizeVariance: 0,
+  lifetime: 1,
+  lifetimeVariance: 0.2,
+  duration: 0,
+  maxCount: 50,
+  emissionRate: 20,
+  burst: false,
+  worldSpace: true,
+  ignoreQualitySettings: false,
+  alignToVelocity: false,
+  speed: 1,
+  speedVariance: 0.3,
+  emitAngle: 0,
+  spreadAngle: 360,
+  gravity: 0,
+  drag: 0,
+  terminalSpeed: 0,
+  stretchFactor: 0,
+  forceX: 0,
+  forceY: 0,
+  noiseStrength: 0,
+  noiseFrequency: 1,
+  shapeType: "Point",
+  shapeRadius: 0.5,
+  boxX: 0.5,
+  boxY: 0.5,
+  startRotation: 0,
+  startRotationVariance: 0,
+  rotationSpeed: 0,
+  rotationSpeedVariance: 0,
+  inheritVelocity: 0,
+  spawnOffsetX: 0,
+  spawnOffsetY: 0,
+  startColor: "#ffffff",
+  startAlpha: 1,
+  endColor: "#ffffff",
+  endAlpha: 0,
+  subEmitterOnSpawn: "",
+  subEmitterOnDeath: ""
+};
 
 const curveDefaults = {
   size: [
@@ -35,15 +91,31 @@ const curveDefaults = {
     { time: 0, color: "#ffee88", alpha: 1 },
     { time: 0.6, color: "#ff8800", alpha: 0.8 },
     { time: 1, color: "#ff0000", alpha: 0 }
+  ],
+  emission: [
+    { time: 0, value: 1 },
+    { time: 1, value: 1 }
+  ],
+  force: [
+    { time: 0, x: 0, y: 0 },
+    { time: 1, x: 0, y: 0 }
+  ],
+  velocity: [
+    { time: 0, x: 0, y: 0 },
+    { time: 1, x: 0, y: 0 }
   ]
 };
+
+const burstDefaults = [];
 
 const presets = window.particlePresets || {};
 
 let curves = structuredClone(curveDefaults);
+let timedBursts = structuredClone(burstDefaults);
 let particles = [];
 let accumulator = 0;
 let emitterAge = 0;
+let firedBurstFlags = [];
 let lastTime = performance.now();
 let paused = false;
 let burstDone = false;
@@ -55,6 +127,14 @@ let customSpriteUrl = null;
 
 function number(id) {
   return Number($(id).value) || 0;
+}
+
+// Null-safe checkbox read so a stale cached index.html (missing new toggles)
+// degrades to defaults instead of throwing inside the frame loop and killing
+// the whole sim.
+function isChecked(id, fallback = false) {
+  const el = $(id);
+  return el ? el.checked : fallback;
 }
 
 function config() {
@@ -74,6 +154,7 @@ function config() {
     burst: $("burst").checked,
     worldSpace: $("worldSpace").checked,
     ignoreQualitySettings: $("ignoreQualitySettings").checked,
+    alignToVelocity: $("alignToVelocity") ? $("alignToVelocity").checked : false,
     speed: number("speed"),
     speedVariance: number("speedVariance"),
     emitAngle: number("emitAngle"),
@@ -90,14 +171,27 @@ function config() {
     shapeRadius: number("shapeRadius"),
     boxX: number("boxX"),
     boxY: number("boxY"),
+    startRotation: number("startRotation"),
+    startRotationVariance: number("startRotationVariance"),
     rotationSpeed: number("rotationSpeed"),
-    rotationSpeedVariance: number("rotationSpeedVariance")
+    rotationSpeedVariance: number("rotationSpeedVariance"),
+    inheritVelocity: $("inheritVelocity") ? number("inheritVelocity") : 0,
+    spawnOffsetX: $("spawnOffsetX") ? number("spawnOffsetX") : 0,
+    spawnOffsetY: $("spawnOffsetY") ? number("spawnOffsetY") : 0,
+    startColor: $("startColor") ? $("startColor").value : "#ffffff",
+    startAlpha: $("startAlpha") ? clamp(Number($("startAlpha").value), 0, 1) : 1,
+    endColor: $("endColor") ? $("endColor").value : "#ffffff",
+    endAlpha: $("endAlpha") ? clamp(Number($("endAlpha").value), 0, 1) : 0,
+    subEmitterOnSpawn: $("subEmitterOnSpawn") ? $("subEmitterOnSpawn").value.trim() : "",
+    subEmitterOnDeath: $("subEmitterOnDeath") ? $("subEmitterOnDeath").value.trim() : ""
   };
 }
 
 function hexToRgb(hex, alpha = 1) {
   const raw = hex.replace("#", "");
-  const value = parseInt(raw, 16);
+  const value = parseInt(raw.length === 3
+    ? raw.split("").map((c) => c + c).join("")
+    : raw, 16);
   return {
     r: (value >> 16) & 255,
     g: (value >> 8) & 255,
@@ -255,14 +349,28 @@ function clearCustomSprite() {
   setCustomSpriteStatus("No custom image — using RSI path.");
 }
 
+// Matches ParticleOverlay.cs: colorOverLifetime gradient if present, else Start->End lerp,
+// then alphaOverLifetime multiplied on top.
 function colorAt(cfg, t) {
-  const gradient = sampleColorCurve(curves.color, t) || hexToRgb("#ffffff", 1);
-  const alphaMul = $("enableAlphaCurve").checked ? sampleCurve(curves.alpha, t) : 1;
+  let base;
+  if (isChecked("enableColorCurve") && curves.color.length) {
+    base = sampleColorCurve(curves.color, t) || hexToRgb("#ffffff", 1);
+  } else {
+    const start = hexToRgb(cfg.startColor, cfg.startAlpha);
+    const end = hexToRgb(cfg.endColor, cfg.endAlpha);
+    base = {
+      r: Math.round(lerp(start.r, end.r, t)),
+      g: Math.round(lerp(start.g, end.g, t)),
+      b: Math.round(lerp(start.b, end.b, t)),
+      a: lerp(start.a, end.a, t)
+    };
+  }
+  const alphaMul = isChecked("enableAlphaCurve", true) ? sampleCurve(curves.alpha, t) : 1;
   return {
-    r: gradient.r,
-    g: gradient.g,
-    b: gradient.b,
-    a: clamp(gradient.a * alphaMul, 0, 1)
+    r: base.r,
+    g: base.g,
+    b: base.b,
+    a: clamp(base.a * alphaMul, 0, 1)
   };
 }
 
@@ -311,10 +419,6 @@ function randRange(base, variance) {
   return base + (Math.random() * 2 - 1) * variance;
 }
 
-function degToRad(deg) {
-  return (deg - 90) * Math.PI / 180;
-}
-
 function sampleCurve(keys, t) {
   if (!keys.length) return 1;
   const sorted = [...keys].sort((a, b) => a.time - b.time);
@@ -331,11 +435,54 @@ function sampleCurve(keys, t) {
   return 1;
 }
 
+function sampleVecCurve(keys, t) {
+  if (!keys.length) return { x: 0, y: 0 };
+  const sorted = [...keys].sort((a, b) => a.time - b.time);
+  if (t <= sorted[0].time) return { x: sorted[0].x, y: sorted[0].y };
+  if (t >= sorted[sorted.length - 1].time) {
+    const last = sorted[sorted.length - 1];
+    return { x: last.x, y: last.y };
+  }
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    if (t >= a.time && t <= b.time) {
+      const local = (t - a.time) / Math.max(0.0001, b.time - a.time);
+      return { x: lerp(a.x, b.x, local), y: lerp(a.y, b.y, local) };
+    }
+  }
+  return { x: 0, y: 0 };
+}
+
+// --- Value noise port of ParticleSystem.cs ValueNoise/Hash ---
+// C# ints wrap on overflow; emulate with Math.imul + |0.
+function hashInt(x, y) {
+  let n = (x + y * 57) | 0;
+  n = ((n << 13) ^ n) | 0;
+  const nSq = Math.imul(n, n);
+  const inner = (Math.imul(nSq, 15731) + 789221) | 0;
+  const m = (Math.imul(n, inner) + 1376312589) | 0;
+  return 1 - ((m & 0x7fffffff) / 1073741824);
+}
+
+function valueNoise(x, y) {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  let fx = x - ix;
+  let fy = y - iy;
+  fx = fx * fx * (3 - 2 * fx);
+  fy = fy * fy * (3 - 2 * fy);
+  const a = hashInt(ix, iy);
+  const b = hashInt(ix + 1, iy);
+  const c = hashInt(ix, iy + 1);
+  const d = hashInt(ix + 1, iy + 1);
+  return a + (b - a) * fx + (c - a) * fy + (d - b - c + a) * fx * fy;
+}
+
 function worldToCanvas(x, y) {
-  const scale = 96;
   return {
-    x: canvas.width / 2 + x * scale,
-    y: canvas.height / 2 - y * scale
+    x: canvas.width / 2 + x * WORLD_SCALE,
+    y: canvas.height / 2 - y * WORLD_SCALE
   };
 }
 
@@ -367,20 +514,27 @@ function sampleSpawn(cfg) {
 function spawnParticle(cfg) {
   if (particles.length >= cfg.maxCount) return;
   const pos = sampleSpawn(cfg);
-  const angle = degToRad(cfg.emitAngle + (Math.random() * 2 - 1) * cfg.spreadAngle);
+  // C#: angle = emitAngle + rand(-spread/2, spread/2); vel = (sin a, cos a) * speed. 0 = up.
+  const spreadHalf = cfg.spreadAngle * 0.5;
+  const angleDeg = cfg.emitAngle + (Math.random() * 2 - 1) * spreadHalf;
+  const angleRad = angleDeg * Math.PI / 180;
   const speed = Math.max(0, randRange(cfg.speed, cfg.speedVariance));
   const lifetime = Math.max(0.05, randRange(cfg.lifetime, cfg.lifetimeVariance));
+  // C#: SizeMultiplier = 1 + rand(-sizeVar, sizeVar) — fractional, not absolute.
+  const sizeMult = 1 + (Math.random() * 2 - 1) * cfg.sizeVariance;
   particles.push({
-    x: pos.x,
-    y: pos.y,
-    vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed,
+    x: pos.x + cfg.spawnOffsetX,
+    y: pos.y + cfg.spawnOffsetY,
+    vx: Math.sin(angleRad) * speed,
+    vy: Math.cos(angleRad) * speed,
     age: 0,
     lifetime,
-    size: Math.max(0.01, randRange(cfg.particleSize, cfg.sizeVariance)),
-    rotation: Math.random() * 360,
+    size: Math.max(0.01, cfg.particleSize * Math.max(0.01, sizeMult)),
+    spawnSpeed: speed,
+    rotation: cfg.startRotation + (Math.random() * 2 - 1) * cfg.startRotationVariance,
     spin: randRange(cfg.rotationSpeed, cfg.rotationSpeedVariance),
-    seed: Math.random() * 1000
+    noiseX: (Math.random() * 2 - 1) * 100,
+    noiseY: (Math.random() * 2 - 1) * 100
   });
 }
 
@@ -395,8 +549,10 @@ function restart() {
   accumulator = 0;
   emitterAge = 0;
   burstDone = false;
-  if (config().burst) {
-    emit(config(), config().maxCount);
+  firedBurstFlags = timedBursts.map(() => false);
+  const cfg = config();
+  if (cfg.burst) {
+    emit(cfg, cfg.maxCount);
     burstDone = true;
   }
 }
@@ -410,9 +566,25 @@ function update(dt) {
     burstDone = true;
   }
 
+  // Timed bursts (ParticleBurstData): fire count particles once age passes time.
+  for (let b = 0; b < timedBursts.length; b++) {
+    if (firedBurstFlags[b]) continue;
+    if (emitterAge < timedBursts[b].time) continue;
+    emit(cfg, Math.max(0, Math.floor(timedBursts[b].count)));
+    firedBurstFlags[b] = true;
+  }
+
   const isEmitterActive = cfg.duration === 0 || emitterAge <= cfg.duration;
   if (!cfg.burst && cfg.emissionRate > 0 && isEmitterActive) {
-    accumulator += cfg.emissionRate * dt;
+    // EmissionOverTime: t = age/duration when duration > 0, else clamp(age) after 1s.
+    let emissionMult = 1;
+    if (isChecked("enableEmissionCurve") && curves.emission.length) {
+      const tE = cfg.duration > 0
+        ? clamp(emitterAge / cfg.duration, 0, 1)
+        : clamp(emitterAge, 0, 1);
+      emissionMult = sampleCurve(curves.emission, tE);
+    }
+    accumulator += cfg.emissionRate * emissionMult * dt;
     const count = Math.floor(accumulator);
     if (count > 0) {
       emit(cfg, count);
@@ -420,20 +592,40 @@ function update(dt) {
     }
   }
 
+  const useSpeedCurve = isChecked("enableSpeedCurve", true);
+  const useForceCurve = isChecked("enableForceCurve");
+  const useVelCurve = isChecked("enableVelocityCurve");
+  const dragMul = cfg.drag > 0 ? Math.exp(-cfg.drag * dt) : 1;
+
   for (const particle of particles) {
     const t = clamp(particle.age / particle.lifetime, 0, 1);
-    const speedMul = $("enableSpeedCurve").checked ? sampleCurve(curves.speed, t) : 1;
-    const noise = cfg.noiseStrength > 0
-      ? Math.sin((emitterAge * cfg.noiseFrequency + particle.seed) * Math.PI * 2) * cfg.noiseStrength
-      : 0;
 
-    particle.vx += (cfg.forceX + noise) * dt;
-    particle.vy += (cfg.forceY - cfg.gravity + noise * 0.35) * dt;
+    // Order mirrors SimulateParticle: drag, force, force-curve, speed-curve,
+    // terminal cap, integrate, velocity-curve nudge, gravity, noise, spin.
+    if (dragMul < 1) {
+      particle.vx *= dragMul;
+      particle.vy *= dragMul;
+    }
 
-    if (cfg.drag > 0) {
-      const drag = Math.exp(-cfg.drag * dt);
-      particle.vx *= drag;
-      particle.vy *= drag;
+    if (cfg.forceX !== 0 || cfg.forceY !== 0) {
+      particle.vx += cfg.forceX * dt;
+      particle.vy += cfg.forceY * dt;
+    }
+
+    if (useForceCurve && curves.force.length) {
+      const f = sampleVecCurve(curves.force, t);
+      particle.vx += f.x * dt;
+      particle.vy += f.y * dt;
+    }
+
+    if (useSpeedCurve && curves.speed.length) {
+      const curveSpeed = sampleCurve(curves.speed, t) * particle.spawnSpeed;
+      const len = Math.hypot(particle.vx, particle.vy);
+      if (len > 1e-6) {
+        const s = curveSpeed / len;
+        particle.vx *= s;
+        particle.vy *= s;
+      }
     }
 
     if (cfg.terminalSpeed > 0) {
@@ -444,8 +636,28 @@ function update(dt) {
       }
     }
 
-    particle.x += particle.vx * speedMul * dt;
-    particle.y += particle.vy * speedMul * dt;
+    particle.x += particle.vx * dt;
+    particle.y += particle.vy * dt;
+
+    if (useVelCurve && curves.velocity.length) {
+      const v = sampleVecCurve(curves.velocity, t);
+      particle.x += v.x * dt;
+      particle.y += v.y * dt;
+    }
+
+    // C# gravity is a positional drift scaled by age ratio, not a constant force.
+    if (cfg.gravity !== 0) {
+      particle.y += -cfg.gravity * dt * t;
+    }
+
+    if (cfg.noiseStrength > 0) {
+      const ageSec = particle.age;
+      const nx = valueNoise(particle.noiseX + ageSec * cfg.noiseFrequency, particle.noiseY);
+      const ny = valueNoise(particle.noiseX, particle.noiseY + ageSec * cfg.noiseFrequency);
+      particle.x += nx * cfg.noiseStrength * dt;
+      particle.y += ny * cfg.noiseStrength * dt;
+    }
+
     particle.rotation += particle.spin * dt;
     particle.age += dt;
   }
@@ -461,19 +673,30 @@ function draw() {
 
   ctx.save();
   ctx.globalCompositeOperation = cfg.spriteState.toLowerCase().includes("smoke") ? "source-over" : "lighter";
+  const useSizeCurve = isChecked("enableSizeCurve", true);
   for (const particle of particles) {
     const t = clamp(particle.age / particle.lifetime, 0, 1);
     const color = colorAt(cfg, t);
-    const sizeMul = $("enableSizeCurve").checked ? sampleCurve(curves.size, t) : 1;
-    const radius = Math.max(1, particle.size * sizeMul * 96);
+    const sizeMul = useSizeCurve ? sampleCurve(curves.size, t) : 1;
+    // C# halfSize = size*0.5 * curves => px radius = halfSize * WORLD_SCALE.
+    const radius = Math.max(1, particle.size * 0.5 * sizeMul * WORLD_SCALE);
     const pos = worldToCanvas(particle.x, particle.y);
-    const angle = Math.atan2(-particle.vy, particle.vx);
-    const stretch = 1 + cfg.stretchFactor * Math.min(3, Math.hypot(particle.vx, particle.vy));
+    const speed = Math.hypot(particle.vx, particle.vy);
+    const stretch = cfg.stretchFactor > 0 ? 1 + speed * cfg.stretchFactor : 1;
+    const velAngle = Math.atan2(-particle.vy, particle.vx); // canvas-space velocity angle
 
     ctx.save();
     ctx.translate(pos.x, pos.y);
-    ctx.rotate(angle + particle.rotation * Math.PI / 180);
-    ctx.scale(stretch, 1);
+    if (stretch > 1 && speed > 0.001) {
+      // Matches Overlay stretch branch: elongate along velocity, ignore spin.
+      ctx.rotate(velAngle - Math.PI / 2);
+      ctx.scale(1, stretch);
+    } else if (cfg.alignToVelocity && speed > 0.001) {
+      // Matches Overlay AlignToVelocity branch: face velocity, ignore spin.
+      ctx.rotate(velAngle - Math.PI / 2);
+    } else {
+      ctx.rotate(particle.rotation * Math.PI / 180);
+    }
     if (sprite) {
       drawSpriteParticle(sprite, color, radius);
     } else {
@@ -524,6 +747,7 @@ function drawSpriteParticle(sprite, color, radius) {
     width,
     height
   );
+  ctx.globalAlpha = 1;
 }
 
 function drawEmitterShape(cfg) {
@@ -534,10 +758,10 @@ function drawEmitterShape(cfg) {
   ctx.setLineDash([6, 6]);
   if (cfg.shapeType === "CircleEdge" || cfg.shapeType === "CircleFill") {
     ctx.beginPath();
-    ctx.arc(center.x, center.y, cfg.shapeRadius * 96, 0, Math.PI * 2);
+    ctx.arc(center.x, center.y, cfg.shapeRadius * WORLD_SCALE, 0, Math.PI * 2);
     ctx.stroke();
   } else if (cfg.shapeType === "Box") {
-    ctx.strokeRect(center.x - cfg.boxX * 96, center.y - cfg.boxY * 96, cfg.boxX * 192, cfg.boxY * 192);
+    ctx.strokeRect(center.x - cfg.boxX * WORLD_SCALE, center.y - cfg.boxY * WORLD_SCALE, cfg.boxX * 2 * WORLD_SCALE, cfg.boxY * 2 * WORLD_SCALE);
   } else {
     ctx.beginPath();
     ctx.arc(center.x, center.y, 5, 0, Math.PI * 2);
@@ -555,20 +779,31 @@ function tick(now) {
 }
 
 function hexWithAlpha(hex, alpha) {
-  const aa = Math.round(clamp(alpha, 0, 1) * 255).toString(16).padStart(2, "0");
-  return `"${hex.toUpperCase()}${aa.toUpperCase()}"`;
+  const clean = hex.replace("#", "").toUpperCase();
+  const short = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const aa = Math.round(clamp(alpha, 0, 1) * 255).toString(16).padStart(2, "0").toUpperCase();
+  return `"#${short}${aa}"`;
 }
 
 function line(key, value, indent = 2) {
   return `${" ".repeat(indent)}${key}: ${value}`;
 }
 
-function yamlCurve(name, keys, indent = 2) {
+function yamlFloatCurve(name, keys, indent = 2) {
   const spaces = " ".repeat(indent);
   const itemSpaces = " ".repeat(indent + 2);
   return [
     `${spaces}${name}:`,
     ...keys.map((key) => `${itemSpaces}- time: ${round(key.time)}\n${itemSpaces}  value: ${round(key.value)}`)
+  ];
+}
+
+function yamlVec2Curve(name, keys, indent = 2) {
+  const spaces = " ".repeat(indent);
+  const itemSpaces = " ".repeat(indent + 2);
+  return [
+    `${spaces}${name}:`,
+    ...keys.map((key) => `${itemSpaces}- time: ${round(key.time)}\n${itemSpaces}  value: (${round(key.x)}, ${round(key.y)})`)
   ];
 }
 
@@ -683,19 +918,26 @@ function mergeYamlListObjects(value) {
 
 function parseColor(value) {
   if (typeof value !== "string") return null;
-  const match = value.trim().replace(/^["']|["']$/g, "").match(/^#?([0-9a-f]{6})([0-9a-f]{2})?$/i);
+  const match = value.trim().replace(/^["']|["']$/g, "").match(/^#?([0-9a-f]{3}|[0-9a-f]{6})([0-9a-f]{2})?$/i);
   if (!match) return null;
+  let rgb = match[1].toLowerCase();
+  if (rgb.length === 3) rgb = rgb.split("").map((c) => c + c).join("");
   return {
-    color: `#${match[1].toLowerCase()}`,
+    color: `#${rgb}`,
     alpha: match[2] ? parseInt(match[2], 16) / 255 : 1
   };
 }
 
 function parseVector(value) {
-  if (typeof value !== "string") return null;
-  const match = value.match(/\(?\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)?/);
-  if (!match) return null;
-  return { x: Number(match[1]), y: Number(match[2]) };
+  if (typeof value === "string") {
+    const match = value.match(/\(?\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)?/);
+    if (!match) return null;
+    return { x: Number(match[1]), y: Number(match[2]) };
+  }
+  if (value && typeof value === "object" && "x" in value && "y" in value) {
+    return { x: Number(value.x), y: Number(value.y) };
+  }
+  return null;
 }
 
 function setField(id, value) {
@@ -706,6 +948,19 @@ function setField(id, value) {
   } else {
     element.value = value;
   }
+}
+
+function resetFormToProtoDefaults() {
+  for (const [key, value] of Object.entries(protoDefaults)) {
+    setField(key, value);
+  }
+  for (const id of ["enableSizeCurve", "enableSpeedCurve", "enableAlphaCurve"]) {
+    setField(id, false);
+  }
+  setField("enableColorCurve", false);
+  setField("enableEmissionCurve", false);
+  setField("enableForceCurve", false);
+  setField("enableVelocityCurve", false);
 }
 
 function importCurve(yaml, key, curveName, checkboxId) {
@@ -722,6 +977,31 @@ function importCurve(yaml, key, curveName, checkboxId) {
   if (imported.length) {
     curves[curveName] = imported;
     setField(checkboxId, true);
+  } else {
+    setField(checkboxId, false);
+  }
+}
+
+function importVecCurve(yaml, key, curveName, checkboxId) {
+  if (!Array.isArray(yaml[key])) {
+    setField(checkboxId, false);
+    return;
+  }
+
+  const imported = yaml[key]
+    .map((entry) => {
+      const vec = parseVector(entry.value);
+      if (!vec) return null;
+      return { time: Number(entry.time), x: vec.x, y: vec.y };
+    })
+    .filter((entry) => entry && Number.isFinite(entry.time) && Number.isFinite(entry.x) && Number.isFinite(entry.y))
+    .sort((a, b) => a.time - b.time);
+
+  if (imported.length) {
+    curves[curveName] = imported;
+    setField(checkboxId, true);
+  } else {
+    setField(checkboxId, false);
   }
 }
 
@@ -745,38 +1025,64 @@ function importColorCurve(yaml) {
   return false;
 }
 
+function importBursts(yaml) {
+  timedBursts = [];
+  if (!Array.isArray(yaml.bursts)) return;
+  timedBursts = yaml.bursts
+    .map((entry) => ({ time: Number(entry.time), count: Math.floor(Number(entry.count)) }))
+    .filter((entry) => Number.isFinite(entry.time) && Number.isFinite(entry.count) && entry.count > 0)
+    .sort((a, b) => a.time - b.time);
+}
+
 function importYamlFromText(text) {
   const yaml = parseYamlMap(text);
   if (yaml.type !== "particleEffect") {
     throw new Error("No particleEffect prototype found.");
   }
 
+  // Reset first so omitted keys fall back to prototype defaults instead of
+  // leaking values from the previously loaded preset (e.g. SfFireContinuous
+  // omits lifetime/speed, which must become 1s/1.0, not Grenade values).
   curves = structuredClone(curveDefaults);
-  setField("shader", "");
-  setField("renderLayer", 0);
-  setField("duration", 0);
+  timedBursts = [];
+  resetFormToProtoDefaults();
+
   setField("effectId", yaml.id);
   if (yaml.sprite && typeof yaml.sprite === "object") {
     setField("spritePath", yaml.sprite.sprite);
     setField("spriteState", yaml.sprite.state);
   }
 
-  const importedColorCurve = importColorCurve(yaml);
-  if (!importedColorCurve) {
-    const legacyColorCurve = colorCurveFromLegacy(yaml.startColor, yaml.endColor);
-    if (legacyColorCurve) curves.color = legacyColorCurve;
+  const hasColorCurve = importColorCurve(yaml);
+  setField("enableColorCurve", hasColorCurve);
+  if (hasColorCurve) {
+    setField("enableAlphaCurve", Array.isArray(yaml.alphaOverLifetime) && yaml.alphaOverLifetime.length > 0);
+  }
+  const startParsed = parseColor(yaml.startColor);
+  const endParsed = parseColor(yaml.endColor);
+  if (startParsed) {
+    setField("startColor", startParsed.color);
+    setField("startAlpha", round(startParsed.alpha));
+  }
+  if (endParsed) {
+    setField("endColor", endParsed.color);
+    setField("endAlpha", round(endParsed.alpha));
+  }
+  if (!hasColorCurve && (startParsed || endParsed)) {
+    setField("enableColorCurve", false);
   }
 
   [
     "particleSize", "sizeVariance", "lifetime", "lifetimeVariance", "duration", "speed", "speedVariance",
     "gravity", "drag", "spreadAngle", "emitAngle", "maxCount", "emissionRate",
     "terminalSpeed", "stretchFactor", "noiseStrength", "noiseFrequency",
-    "rotationSpeed", "rotationSpeedVariance", "renderLayer"
+    "startRotation", "startRotationVariance", "rotationSpeed", "rotationSpeedVariance",
+    "inheritVelocity", "renderLayer"
   ].forEach((key) => setField(key, yaml[key]));
 
   setField("shader", yaml.shader || "");
 
-  ["burst", "worldSpace", "ignoreQualitySettings"].forEach((key) => {
+  ["burst", "worldSpace", "ignoreQualitySettings", "alignToVelocity"].forEach((key) => {
     if (key in yaml) setField(key, yaml[key]);
   });
 
@@ -785,6 +1091,15 @@ function importYamlFromText(text) {
     setField("forceX", force.x);
     setField("forceY", force.y);
   }
+
+  const spawnOff = parseVector(yaml.spawnOffset);
+  if (spawnOff) {
+    setField("spawnOffsetX", spawnOff.x);
+    setField("spawnOffsetY", spawnOff.y);
+  }
+
+  if (yaml.subEmitterOnSpawn) setField("subEmitterOnSpawn", yaml.subEmitterOnSpawn);
+  if (yaml.subEmitterOnDeath) setField("subEmitterOnDeath", yaml.subEmitterOnDeath);
 
   if (yaml.shape && typeof yaml.shape === "object") {
     setField("shapeType", yaml.shape.type || "Point");
@@ -800,8 +1115,16 @@ function importYamlFromText(text) {
 
   importCurve(yaml, "sizeOverLifetime", "size", "enableSizeCurve");
   importCurve(yaml, "speedOverLifetime", "speed", "enableSpeedCurve");
-  importCurve(yaml, "alphaOverLifetime", "alpha", "enableAlphaCurve");
+  if (!hasColorCurve || (Array.isArray(yaml.alphaOverLifetime) && yaml.alphaOverLifetime.length)) {
+    importCurve(yaml, "alphaOverLifetime", "alpha", "enableAlphaCurve");
+  }
+  importCurve(yaml, "emissionOverTime", "emission", "enableEmissionCurve");
+  importVecCurve(yaml, "forceOverLifetime", "force", "enableForceCurve");
+  importVecCurve(yaml, "velocityOverLifetime", "velocity", "enableVelocityCurve");
+  importBursts(yaml);
   renderCurveEditors();
+  renderVecCurveEditors();
+  renderBurstsEditor();
   renderColorCurveEditor();
   restart();
   generateYaml();
@@ -824,7 +1147,17 @@ function generateYaml() {
     line("id", cfg.effectId),
     "  sprite:",
     line("sprite", cfg.spritePath, 4),
-    line("state", cfg.spriteState, 4),
+    line("state", cfg.spriteState, 4)
+  ];
+
+  if (isChecked("enableColorCurve") && curves.color.length) {
+    // colorOverLifetime overrides start/end in-game; only export one path.
+  } else {
+    output.push(line("startColor", hexWithAlpha(cfg.startColor, cfg.startAlpha)));
+    output.push(line("endColor", hexWithAlpha(cfg.endColor, cfg.endAlpha)));
+  }
+
+  output.push(...[
     line("particleSize", round(cfg.particleSize)),
     line("sizeVariance", round(cfg.sizeVariance)),
     line("lifetime", `${round(cfg.lifetime)}s`),
@@ -840,11 +1173,12 @@ function generateYaml() {
     line("emissionRate", round(cfg.emissionRate)),
     line("burst", cfg.burst),
     line("worldSpace", cfg.worldSpace)
-  ];
+  ]);
 
   if (cfg.shader) output.push(line("shader", cfg.shader));
   if (cfg.renderLayer !== 0) output.push(line("renderLayer", cfg.renderLayer));
   if (cfg.ignoreQualitySettings) output.push(line("ignoreQualitySettings", true));
+  if (cfg.alignToVelocity) output.push(line("alignToVelocity", true));
   if (cfg.terminalSpeed > 0) output.push(line("terminalSpeed", round(cfg.terminalSpeed)));
   if (cfg.stretchFactor > 0) output.push(line("stretchFactor", round(cfg.stretchFactor)));
   if (cfg.forceX !== 0 || cfg.forceY !== 0) output.push(line("constantForce", `(${round(cfg.forceX)}, ${round(cfg.forceY)})`));
@@ -852,8 +1186,22 @@ function generateYaml() {
     output.push(line("noiseStrength", round(cfg.noiseStrength)));
     output.push(line("noiseFrequency", round(cfg.noiseFrequency)));
   }
+  if (cfg.inheritVelocity !== 0) output.push(line("inheritVelocity", round(cfg.inheritVelocity)));
+  if (cfg.startRotation !== 0) output.push(line("startRotation", round(cfg.startRotation)));
+  if (cfg.startRotationVariance !== 0) output.push(line("startRotationVariance", round(cfg.startRotationVariance)));
   if (cfg.rotationSpeed !== 0) output.push(line("rotationSpeed", round(cfg.rotationSpeed)));
   if (cfg.rotationSpeedVariance !== 0) output.push(line("rotationSpeedVariance", round(cfg.rotationSpeedVariance)));
+  if (cfg.spawnOffsetX !== 0 || cfg.spawnOffsetY !== 0) output.push(line("spawnOffset", `(${round(cfg.spawnOffsetX)}, ${round(cfg.spawnOffsetY)})`));
+  if (cfg.subEmitterOnSpawn) output.push(line("subEmitterOnSpawn", cfg.subEmitterOnSpawn));
+  if (cfg.subEmitterOnDeath) output.push(line("subEmitterOnDeath", cfg.subEmitterOnDeath));
+
+  if (timedBursts.length) {
+    output.push("  bursts:");
+    for (const b of timedBursts) {
+      output.push(`    - time: ${round(b.time)}s`);
+      output.push(`      count: ${Math.floor(b.count)}`);
+    }
+  }
 
   if (cfg.shapeType !== "Point") {
     output.push("  shape:");
@@ -865,35 +1213,135 @@ function generateYaml() {
     }
   }
 
-  if ($("enableSizeCurve").checked) output.push(...yamlCurve("sizeOverLifetime", curves.size));
-  if ($("enableSpeedCurve").checked) output.push(...yamlCurve("speedOverLifetime", curves.speed));
-  if ($("enableAlphaCurve").checked) output.push(...yamlCurve("alphaOverLifetime", curves.alpha));
-  output.push(...yamlColorCurve("colorOverLifetime", colorKeysForYaml()));
+  if (isChecked("enableSizeCurve", true)) output.push(...yamlFloatCurve("sizeOverLifetime", curves.size));
+  if (isChecked("enableSpeedCurve", true)) output.push(...yamlFloatCurve("speedOverLifetime", curves.speed));
+  if (isChecked("enableAlphaCurve", true)) output.push(...yamlFloatCurve("alphaOverLifetime", curves.alpha));
+  if (isChecked("enableEmissionCurve")) output.push(...yamlFloatCurve("emissionOverTime", curves.emission));
+  if (isChecked("enableForceCurve")) output.push(...yamlVec2Curve("forceOverLifetime", curves.force));
+  if (isChecked("enableVelocityCurve")) output.push(...yamlVec2Curve("velocityOverLifetime", curves.velocity));
+  if (isChecked("enableColorCurve")) output.push(...yamlColorCurve("colorOverLifetime", curves.color));
 
   yamlOutput.value = output.join("\n") + "\n";
 }
 
+function floatCurveRow(curveName, index, key) {
+  const row = document.createElement("div");
+  row.className = "curve-row editable";
+  row.innerHTML = `
+    <input aria-label="Time" type="number" min="0" max="1" step="0.05" value="${round(key.time)}">
+    <input aria-label="Value" type="range" min="0" max="2" step="0.01" value="${key.value}">
+    <span>${round(key.value)}</span>
+    <button type="button" title="Remove key">x</button>
+  `;
+  const [timeInput, valueInput] = row.querySelectorAll("input");
+  const removeButton = row.querySelector("button");
+  timeInput.addEventListener("input", () => {
+    curves[curveName][index].time = clamp(Number(timeInput.value), 0, 1);
+    generateYaml();
+  });
+  valueInput.addEventListener("input", () => {
+    curves[curveName][index].value = Number(valueInput.value);
+    row.querySelector("span").textContent = round(valueInput.value);
+    generateYaml();
+  });
+  removeButton.addEventListener("click", () => {
+    if (curves[curveName].length <= 1) return;
+    curves[curveName].splice(index, 1);
+    renderCurveEditors();
+    generateYaml();
+  });
+  return row;
+}
+
 function renderCurveEditors() {
-  document.querySelectorAll(".curve-editor").forEach((editor) => {
+  document.querySelectorAll(".curve-editor[data-curve]").forEach((editor) => {
     const name = editor.dataset.curve;
+    if (!curves[name] || !Array.isArray(curves[name]) || (curves[name][0] && ("x" in curves[name][0]))) return;
     editor.innerHTML = "";
-    curves[name].forEach((key, index) => {
+    [...curves[name]]
+      .map((key, index) => ({ key, index }))
+      .sort((a, b) => a.key.time - b.key.time)
+      .forEach(({ key, index }) => {
+        editor.appendChild(floatCurveRow(name, index, key));
+      });
+  });
+}
+
+function renderVecCurveEditors() {
+  document.querySelectorAll(".curve-editor[data-veccurve]").forEach((editor) => {
+    const name = editor.dataset.veccurve;
+    editor.innerHTML = "";
+    [...curves[name]]
+      .map((key, index) => ({ key, index }))
+      .sort((a, b) => a.key.time - b.key.time)
+      .forEach(({ key, index }) => {
+        const row = document.createElement("div");
+        row.className = "color-curve-row";
+        row.innerHTML = `
+          <input aria-label="Time" type="number" min="0" max="1" step="0.05" value="${round(key.time)}">
+          <input aria-label="X" type="number" step="0.1" value="${round(key.x)}">
+          <input aria-label="Y" type="number" step="0.1" value="${round(key.y)}">
+          <button type="button" title="Remove key">x</button>
+        `;
+        const [timeInput, xInput, yInput] = row.querySelectorAll("input");
+        const removeButton = row.querySelector("button");
+        const update = () => {
+          curves[name][index] = {
+            time: clamp(Number(timeInput.value), 0, 1),
+            x: Number(xInput.value),
+            y: Number(yInput.value)
+          };
+          generateYaml();
+        };
+        timeInput.addEventListener("input", update);
+        xInput.addEventListener("input", update);
+        yInput.addEventListener("input", update);
+        removeButton.addEventListener("click", () => {
+          if (curves[name].length <= 1) return;
+          curves[name].splice(index, 1);
+          renderVecCurveEditors();
+          generateYaml();
+        });
+        editor.appendChild(row);
+      });
+  });
+}
+
+function renderBurstsEditor() {
+  const editor = $("burstsEditor");
+  if (!editor) return;
+  editor.innerHTML = "";
+  timedBursts
+    .map((burst, index) => ({ burst, index }))
+    .sort((a, b) => a.burst.time - b.burst.time)
+    .forEach(({ burst, index }) => {
       const row = document.createElement("div");
-      row.className = "curve-row";
+      row.className = "color-curve-row";
       row.innerHTML = `
-        <span>${round(key.time)}</span>
-        <input type="range" min="0" max="2" step="0.01" value="${key.value}">
-        <span>${round(key.value)}</span>
+        <input aria-label="Burst time (s)" type="number" min="0" step="0.1" value="${round(burst.time)}">
+        <input aria-label="Burst count" type="number" min="1" step="1" value="${Math.floor(burst.count)}">
+        <span style="color:var(--muted);font-size:12px">particles</span>
+        <button type="button" title="Remove burst">x</button>
       `;
-      const input = row.querySelector("input");
-      input.addEventListener("input", () => {
-        curves[name][index].value = Number(input.value);
-        row.lastElementChild.textContent = round(input.value);
+      const [timeInput, countInput] = row.querySelectorAll("input");
+      const removeButton = row.querySelector("button");
+      const update = () => {
+        timedBursts[index] = {
+          time: Math.max(0, Number(timeInput.value)),
+          count: Math.max(1, Math.floor(Number(countInput.value)))
+        };
+        generateYaml();
+      };
+      timeInput.addEventListener("input", update);
+      countInput.addEventListener("input", update);
+      removeButton.addEventListener("click", () => {
+        timedBursts.splice(index, 1);
+        renderBurstsEditor();
+        restart();
         generateYaml();
       });
       editor.appendChild(row);
     });
-  });
 }
 
 function renderColorCurveEditor() {
@@ -938,6 +1386,25 @@ function renderColorCurveEditor() {
 function addColorStop() {
   curves.color.push({ time: 0.5, color: "#ffffff", alpha: 1 });
   renderColorCurveEditor();
+  generateYaml();
+}
+
+function addFloatKey(curveName) {
+  curves[curveName].push({ time: 0.5, value: 1 });
+  renderCurveEditors();
+  generateYaml();
+}
+
+function addVecKey(curveName) {
+  curves[curveName].push({ time: 0.5, x: 0, y: 0 });
+  renderVecCurveEditors();
+  generateYaml();
+}
+
+function addBurst() {
+  timedBursts.push({ time: 0.5, count: 10 });
+  renderBurstsEditor();
+  restart();
   generateYaml();
 }
 
@@ -1023,7 +1490,6 @@ function startRenderExport() {
     if (recordingStopped) return;
 
     const now = performance.now();
-    const elapsed = (now - recordingStart) / 1000;
     const noParticlesLeft = cfg.burst && particles.length === 0 && burstDone;
     const shouldStop = noParticlesLeft || now >= maxEndTime;
 
@@ -1044,14 +1510,20 @@ function setCurveData(curveName, keys) {
 
 function applyPreset(name) {
   const preset = presets[name];
+  if (!preset) return;
   curves = structuredClone(curveDefaults);
-  setField("shader", "");
-  setField("renderLayer", 0);
-  setField("duration", 0);
+  timedBursts = structuredClone(preset.bursts || []);
+  resetFormToProtoDefaults();
+  // Presets were authored against default size/speed/alpha falloff curves,
+  // so keep those enabled unless the preset overrides them. (Real YAML
+  // imports use the opposite default: no curve unless present.)
   setField("enableSizeCurve", true);
   setField("enableSpeedCurve", true);
   setField("enableAlphaCurve", true);
+  setField("enableColorCurve", false);
   for (const [key, value] of Object.entries(preset)) {
+    if (key === "bursts" || key.endsWith("OverLifetime")) continue;
+    if (key === "colorOverLifetime") continue;
     const element = $(key);
     if (!element) continue;
     if (element.type === "checkbox") {
@@ -1063,14 +1535,34 @@ function applyPreset(name) {
   setCurveData("size", preset.sizeOverLifetime);
   setCurveData("speed", preset.speedOverLifetime);
   setCurveData("alpha", preset.alphaOverLifetime);
-  setCurveData("color", preset.colorOverLifetime);
-  if (!Array.isArray(preset.colorOverLifetime)) {
+  setCurveData("emission", preset.emissionOverTime);
+  setCurveData("force", preset.forceOverLifetime);
+  setCurveData("velocity", preset.velocityOverLifetime);
+  setField("enableSizeCurve", Array.isArray(preset.sizeOverLifetime));
+  setField("enableSpeedCurve", Array.isArray(preset.speedOverLifetime));
+  setField("enableAlphaCurve", Array.isArray(preset.alphaOverLifetime));
+  setField("enableEmissionCurve", Array.isArray(preset.emissionOverTime));
+  setField("enableForceCurve", Array.isArray(preset.forceOverLifetime));
+  setField("enableVelocityCurve", Array.isArray(preset.velocityOverLifetime));
+  if (Array.isArray(preset.colorOverLifetime)) {
+    setCurveData("color", preset.colorOverLifetime);
+    setField("enableColorCurve", true);
+  } else {
     const legacyStart = preset.startColor ? hexWithAlpha(preset.startColor, preset.startAlpha ?? 1) : null;
     const legacyEnd = preset.endColor ? hexWithAlpha(preset.endColor, preset.endAlpha ?? 0) : null;
     const legacyColorCurve = colorCurveFromLegacy(legacyStart, legacyEnd);
+    if (preset.startColor) setField("startColor", preset.startColor);
+    if (preset.startAlpha !== undefined) setField("startAlpha", preset.startAlpha);
+    if (preset.endColor) setField("endColor", preset.endColor);
+    if (preset.endAlpha !== undefined) setField("endAlpha", preset.endAlpha);
+    // Legacy presets use the Start->End lerp path (matches in-game when no
+    // colorOverLifetime is set); keep the converted gradient available but off.
     if (legacyColorCurve) curves.color = legacyColorCurve;
+    setField("enableColorCurve", false);
   }
   renderCurveEditors();
+  renderVecCurveEditors();
+  renderBurstsEditor();
   renderColorCurveEditor();
   restart();
   generateYaml();
@@ -1096,6 +1588,7 @@ function setup() {
 
   [...fields, ...checkFields].forEach((id) => {
     const element = $(id);
+    if (!element) return;
     element.addEventListener("input", () => {
       if (id === "maxCount" && particles.length > number("maxCount")) {
         particles = particles.slice(0, number("maxCount"));
@@ -1108,6 +1601,14 @@ function setup() {
 
   $("preset").addEventListener("change", () => applyPreset($("preset").value));
   $("addColorStop").addEventListener("click", addColorStop);
+  document.querySelectorAll("[data-addcurve]").forEach((btn) => {
+    btn.addEventListener("click", () => addFloatKey(btn.dataset.addcurve));
+  });
+  document.querySelectorAll("[data-addveccurve]").forEach((btn) => {
+    btn.addEventListener("click", () => addVecKey(btn.dataset.addveccurve));
+  });
+  const addBurstBtn = $("addBurst");
+  if (addBurstBtn) addBurstBtn.addEventListener("click", addBurst);
   $("pauseBtn").addEventListener("click", () => {
     paused = !paused;
     $("pauseBtn").textContent = paused ? "Resume" : "Pause";
@@ -1166,6 +1667,8 @@ function setup() {
   $("clearCustomSprite").addEventListener("click", clearCustomSprite);
 
   renderCurveEditors();
+  renderVecCurveEditors();
+  renderBurstsEditor();
   renderColorCurveEditor();
   applyPreset("Grenade sparks");
   requestAnimationFrame(tick);

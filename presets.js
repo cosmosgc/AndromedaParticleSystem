@@ -8,7 +8,7 @@ window.particlePresets = {
     startAlpha: 1,
     endAlpha: 0,
     particleSize: 0.08,
-    sizeVariance: 0.03,
+    sizeVariance: 0.375,
     lifetime: 0.6,
     lifetimeVariance: 0.2,
     maxCount: 30,
@@ -31,7 +31,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 180,
-    rotationSpeedVariance: 90
+    rotationSpeedVariance: 90,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Muzzle flash": {
     effectId: "MuzzleFlash",
@@ -42,7 +44,7 @@ window.particlePresets = {
     startAlpha: 1,
     endAlpha: 0,
     particleSize: 0.18,
-    sizeVariance: 0.08,
+    sizeVariance: 0.444,
     lifetime: 0.18,
     lifetimeVariance: 0.05,
     maxCount: 16,
@@ -65,7 +67,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 0,
-    rotationSpeedVariance: 180
+    rotationSpeedVariance: 180,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Smoke puff": {
     effectId: "SmokePuff",
@@ -76,7 +80,7 @@ window.particlePresets = {
     startAlpha: 0.65,
     endAlpha: 0,
     particleSize: 0.2,
-    sizeVariance: 0.08,
+    sizeVariance: 0.4,
     lifetime: 1.8,
     lifetimeVariance: 0.4,
     maxCount: 45,
@@ -99,7 +103,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 30,
-    rotationSpeedVariance: 80
+    rotationSpeedVariance: 80,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Box field": {
     effectId: "BoxField",
@@ -110,7 +116,7 @@ window.particlePresets = {
     startAlpha: 0.9,
     endAlpha: 0,
     particleSize: 0.07,
-    sizeVariance: 0.02,
+    sizeVariance: 0.286,
     lifetime: 1.2,
     lifetimeVariance: 0.25,
     maxCount: 80,
@@ -133,7 +139,9 @@ window.particlePresets = {
     boxX: 0.8,
     boxY: 0.35,
     rotationSpeed: 0,
-    rotationSpeedVariance: 0
+    rotationSpeedVariance: 0,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Arc welder": {
     effectId: "ArcWelder",
@@ -144,7 +152,7 @@ window.particlePresets = {
     startAlpha: 1,
     endAlpha: 0,
     particleSize: 0.05,
-    sizeVariance: 0.02,
+    sizeVariance: 0.4,
     lifetime: 0.35,
     lifetimeVariance: 0.12,
     maxCount: 70,
@@ -167,7 +175,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 240,
-    rotationSpeedVariance: 160
+    rotationSpeedVariance: 160,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Cryo mist": {
     effectId: "CryoMist",
@@ -178,7 +188,7 @@ window.particlePresets = {
     startAlpha: 0.48,
     endAlpha: 0,
     particleSize: 0.16,
-    sizeVariance: 0.07,
+    sizeVariance: 0.438,
     lifetime: 2.4,
     lifetimeVariance: 0.7,
     maxCount: 100,
@@ -201,7 +211,9 @@ window.particlePresets = {
     boxX: 0.7,
     boxY: 0.12,
     rotationSpeed: 12,
-    rotationSpeedVariance: 36
+    rotationSpeedVariance: 36,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Plasma vent": {
     effectId: "PlasmaVent",
@@ -212,7 +224,7 @@ window.particlePresets = {
     startAlpha: 0.8,
     endAlpha: 0,
     particleSize: 0.13,
-    sizeVariance: 0.06,
+    sizeVariance: 0.462,
     lifetime: 1.1,
     lifetimeVariance: 0.35,
     maxCount: 120,
@@ -235,7 +247,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 70,
-    rotationSpeedVariance: 120
+    rotationSpeedVariance: 120,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Med scanner pulse": {
     effectId: "MedScannerPulse",
@@ -246,7 +260,7 @@ window.particlePresets = {
     startAlpha: 0.85,
     endAlpha: 0,
     particleSize: 0.06,
-    sizeVariance: 0.015,
+    sizeVariance: 0.25,
     lifetime: 1.4,
     lifetimeVariance: 0.15,
     maxCount: 64,
@@ -269,7 +283,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 0,
-    rotationSpeedVariance: 0
+    rotationSpeedVariance: 0,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Magic circle": {
     effectId: "MagicCircle",
@@ -280,7 +296,7 @@ window.particlePresets = {
     startAlpha: 0.95,
     endAlpha: 0,
     particleSize: 0.055,
-    sizeVariance: 0.02,
+    sizeVariance: 0.364,
     lifetime: 1.8,
     lifetimeVariance: 0.3,
     maxCount: 160,
@@ -304,6 +320,8 @@ window.particlePresets = {
     boxY: 0.5,
     rotationSpeed: 90,
     rotationSpeedVariance: 45,
+    startRotation: 0,
+    startRotationVariance: 180,
     colorOverLifetime: [
       { time: 0, color: "#ff6ab7", alpha: 0.95 },
       { time: 0.45, color: "#9f7cff", alpha: 0.85 },
@@ -322,7 +340,7 @@ window.particlePresets = {
     startAlpha: 0.95,
     endAlpha: 0,
     particleSize: 0.09,
-    sizeVariance: 0.025,
+    sizeVariance: 0.278,
     lifetime: 1.6,
     lifetimeVariance: 0.35,
     maxCount: 8,
@@ -345,7 +363,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 45,
-    rotationSpeedVariance: 90
+    rotationSpeedVariance: 90,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Rain streaks": {
     effectId: "RainStreaks",
@@ -356,7 +376,7 @@ window.particlePresets = {
     startAlpha: 0.78,
     endAlpha: 0.12,
     particleSize: 0.025,
-    sizeVariance: 0.01,
+    sizeVariance: 0.4,
     lifetime: 0.85,
     lifetimeVariance: 0.18,
     maxCount: 260,
@@ -379,7 +399,9 @@ window.particlePresets = {
     boxX: 1.35,
     boxY: 0.08,
     rotationSpeed: 0,
-    rotationSpeedVariance: 0
+    rotationSpeedVariance: 0,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Blood mist": {
     effectId: "BloodMist",
@@ -390,7 +412,7 @@ window.particlePresets = {
     startAlpha: 0.72,
     endAlpha: 0,
     particleSize: 0.12,
-    sizeVariance: 0.06,
+    sizeVariance: 0.5,
     lifetime: 1.1,
     lifetimeVariance: 0.35,
     maxCount: 72,
@@ -413,7 +435,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 50,
-    rotationSpeedVariance: 110
+    rotationSpeedVariance: 110,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Steam jet": {
     effectId: "SteamJet",
@@ -424,7 +448,7 @@ window.particlePresets = {
     startAlpha: 0.62,
     endAlpha: 0,
     particleSize: 0.15,
-    sizeVariance: 0.06,
+    sizeVariance: 0.4,
     lifetime: 1.25,
     lifetimeVariance: 0.3,
     maxCount: 110,
@@ -447,7 +471,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 24,
-    rotationSpeedVariance: 70
+    rotationSpeedVariance: 70,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Ember drift": {
     effectId: "EmberDrift",
@@ -458,7 +484,7 @@ window.particlePresets = {
     startAlpha: 0.9,
     endAlpha: 0,
     particleSize: 0.045,
-    sizeVariance: 0.025,
+    sizeVariance: 0.556,
     lifetime: 2.3,
     lifetimeVariance: 0.7,
     maxCount: 130,
@@ -481,7 +507,9 @@ window.particlePresets = {
     boxX: 0.55,
     boxY: 0.12,
     rotationSpeed: 120,
-    rotationSpeedVariance: 180
+    rotationSpeedVariance: 180,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Toxic bubbles": {
     effectId: "ToxicBubbles",
@@ -492,7 +520,7 @@ window.particlePresets = {
     startAlpha: 0.7,
     endAlpha: 0,
     particleSize: 0.11,
-    sizeVariance: 0.045,
+    sizeVariance: 0.409,
     lifetime: 1.9,
     lifetimeVariance: 0.55,
     maxCount: 95,
@@ -515,7 +543,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 16,
-    rotationSpeedVariance: 42
+    rotationSpeedVariance: 42,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Snow fall": {
     effectId: "SnowFall",
@@ -526,7 +556,7 @@ window.particlePresets = {
     startAlpha: 0.8,
     endAlpha: 0.18,
     particleSize: 0.055,
-    sizeVariance: 0.025,
+    sizeVariance: 0.455,
     lifetime: 3.2,
     lifetimeVariance: 0.8,
     maxCount: 180,
@@ -549,7 +579,9 @@ window.particlePresets = {
     boxX: 1.25,
     boxY: 0.08,
     rotationSpeed: 18,
-    rotationSpeedVariance: 60
+    rotationSpeedVariance: 60,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Shield shimmer": {
     effectId: "ShieldShimmer",
@@ -560,7 +592,7 @@ window.particlePresets = {
     startAlpha: 0.75,
     endAlpha: 0,
     particleSize: 0.045,
-    sizeVariance: 0.012,
+    sizeVariance: 0.267,
     lifetime: 1.15,
     lifetimeVariance: 0.2,
     maxCount: 120,
@@ -584,6 +616,8 @@ window.particlePresets = {
     boxY: 0.5,
     rotationSpeed: 35,
     rotationSpeedVariance: 25,
+    startRotation: 0,
+    startRotationVariance: 180,
     colorOverLifetime: [
       { time: 0, color: "#5ee7ff", alpha: 0.75 },
       { time: 0.5, color: "#ffffff", alpha: 0.65 },
@@ -601,7 +635,7 @@ window.particlePresets = {
     startAlpha: 1,
     endAlpha: 0,
     particleSize: 0.065,
-    sizeVariance: 0.025,
+    sizeVariance: 0.385,
     lifetime: 0.9,
     lifetimeVariance: 0.2,
     maxCount: 90,
@@ -624,7 +658,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 210,
-    rotationSpeedVariance: 140
+    rotationSpeedVariance: 140,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Bean bloom": {
     effectId: "BeanBloom",
@@ -635,7 +671,7 @@ window.particlePresets = {
     startAlpha: 0.95,
     endAlpha: 0.05,
     particleSize: 0.08,
-    sizeVariance: 0.02,
+    sizeVariance: 0.25,
     lifetime: 1.4,
     lifetimeVariance: 0.3,
     maxCount: 50,
@@ -658,7 +694,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 18,
-    rotationSpeedVariance: 40
+    rotationSpeedVariance: 40,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Fountain spray": {
     effectId: "FountainSpray",
@@ -669,7 +707,7 @@ window.particlePresets = {
     startAlpha: 0.9,
     endAlpha: 0.15,
     particleSize: 0.06,
-    sizeVariance: 0.02,
+    sizeVariance: 0.333,
     lifetime: 1.8,
     lifetimeVariance: 0.4,
     maxCount: 120,
@@ -692,7 +730,9 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 80,
-    rotationSpeedVariance: 120
+    rotationSpeedVariance: 120,
+    startRotation: 0,
+    startRotationVariance: 180
   },
   "Golden fountain": {
     effectId: "GoldenFountain",
@@ -703,7 +743,7 @@ window.particlePresets = {
     startAlpha: 0.92,
     endAlpha: 0,
     particleSize: 0.12,
-    sizeVariance: 0.05,
+    sizeVariance: 0.417,
     lifetime: 2.2,
     lifetimeVariance: 0.5,
     maxCount: 140,
@@ -726,6 +766,8 @@ window.particlePresets = {
     boxX: 0.5,
     boxY: 0.5,
     rotationSpeed: 30,
-    rotationSpeedVariance: 60
+    rotationSpeedVariance: 60,
+    startRotation: 0,
+    startRotationVariance: 180
   }
 };

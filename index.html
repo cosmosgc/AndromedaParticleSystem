@@ -94,9 +94,40 @@
         <div class="curve-card">
           <div class="curve-title">
             <strong>Color over lifetime</strong>
+            <label><input id="enableColorCurve" type="checkbox"> Include</label>
           </div>
           <div class="color-curve-editor" id="colorCurveEditor"></div>
           <button id="addColorStop" class="wide-button" type="button">Add color stop</button>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="startColor">Start color</label>
+            <input id="startColor" type="color" value="#ffffff">
+          </div>
+          <div class="field-row">
+            <label for="startAlpha">Start alpha</label>
+            <input id="startAlpha" type="number" step="0.01" min="0" max="1" value="1">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="endColor">End color</label>
+            <input id="endColor" type="color" value="#ffffff">
+          </div>
+          <div class="field-row">
+            <label for="endAlpha">End alpha</label>
+            <input id="endAlpha" type="number" step="0.01" min="0" max="1" value="0">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="subEmitterOnSpawn">Sub-emitter on spawn (export only)</label>
+            <input id="subEmitterOnSpawn" type="text" placeholder="Optional effect id">
+          </div>
+          <div class="field-row">
+            <label for="subEmitterOnDeath">Sub-emitter on death (export only)</label>
+            <input id="subEmitterOnDeath" type="text" placeholder="Optional effect id">
+          </div>
         </div>
         <div class="split">
           <div class="field-row">
@@ -233,12 +264,41 @@
         </div>
         <div class="split">
           <div class="field-row">
-            <label for="rotationSpeed">Rotation speed</label>
+            <label for="startRotation">Start rotation (deg)</label>
+            <input id="startRotation" type="number" step="1" value="0">
+          </div>
+          <div class="field-row">
+            <label for="startRotationVariance">Start rotation variance (deg)</label>
+            <input id="startRotationVariance" type="number" step="1" min="0" value="0">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="rotationSpeed">Rotation speed (deg/s)</label>
             <input id="rotationSpeed" type="number" step="1" value="0">
           </div>
           <div class="field-row">
-            <label for="rotationSpeedVariance">Rotation variance</label>
-            <input id="rotationSpeedVariance" type="number" step="1" value="0">
+            <label for="rotationSpeedVariance">Rotation variance (deg/s)</label>
+            <input id="rotationSpeedVariance" type="number" step="1" min="0" value="0">
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="inheritVelocity">Inherit velocity (0-1, export only)</label>
+            <input id="inheritVelocity" type="number" step="0.05" min="0" max="1" value="0">
+          </div>
+          <div class="field-row">
+            <label><input id="alignToVelocity" type="checkbox"> Align to velocity</label>
+          </div>
+        </div>
+        <div class="split">
+          <div class="field-row">
+            <label for="spawnOffsetX">Spawn offset X</label>
+            <input id="spawnOffsetX" type="number" step="0.05" value="0">
+          </div>
+          <div class="field-row">
+            <label for="spawnOffsetY">Spawn offset Y</label>
+            <input id="spawnOffsetY" type="number" step="0.05" value="0">
           </div>
         </div>
       </section>
@@ -250,6 +310,7 @@
             <label><input id="enableSizeCurve" type="checkbox" checked> Include</label>
           </div>
           <div class="curve-editor" data-curve="size"></div>
+          <button class="wide-button" type="button" data-addcurve="size">Add size key</button>
         </div>
         <div class="curve-card">
           <div class="curve-title">
@@ -257,6 +318,7 @@
             <label><input id="enableSpeedCurve" type="checkbox" checked> Include</label>
           </div>
           <div class="curve-editor" data-curve="speed"></div>
+          <button class="wide-button" type="button" data-addcurve="speed">Add speed key</button>
         </div>
         <div class="curve-card">
           <div class="curve-title">
@@ -264,6 +326,38 @@
             <label><input id="enableAlphaCurve" type="checkbox" checked> Include</label>
           </div>
           <div class="curve-editor" data-curve="alpha"></div>
+          <button class="wide-button" type="button" data-addcurve="alpha">Add alpha key</button>
+        </div>
+        <div class="curve-card">
+          <div class="curve-title">
+            <strong>Emission over time</strong>
+            <label><input id="enableEmissionCurve" type="checkbox"> Include</label>
+          </div>
+          <div class="curve-editor" data-curve="emission"></div>
+          <button class="wide-button" type="button" data-addcurve="emission">Add emission key</button>
+        </div>
+        <div class="curve-card">
+          <div class="curve-title">
+            <strong>Force over lifetime (X, Y)</strong>
+            <label><input id="enableForceCurve" type="checkbox"> Include</label>
+          </div>
+          <div class="curve-editor" data-veccurve="force"></div>
+          <button class="wide-button" type="button" data-addveccurve="force">Add force key</button>
+        </div>
+        <div class="curve-card">
+          <div class="curve-title">
+            <strong>Velocity over lifetime (X, Y nudge)</strong>
+            <label><input id="enableVelocityCurve" type="checkbox"> Include</label>
+          </div>
+          <div class="curve-editor" data-veccurve="velocity"></div>
+          <button class="wide-button" type="button" data-addveccurve="velocity">Add velocity key</button>
+        </div>
+        <div class="curve-card">
+          <div class="curve-title">
+            <strong>Timed bursts</strong>
+          </div>
+          <div class="curve-editor" id="burstsEditor"></div>
+          <button id="addBurst" class="wide-button" type="button">Add burst</button>
         </div>
       </section>
 

@@ -51,8 +51,14 @@ button:hover {
 
 .preview-panel {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
+  /* Pin the preview to the viewport so the stage stays visible while the
+     (much taller) editor column scrolls. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
 
 .topbar {
@@ -92,8 +98,10 @@ button:hover {
 .stage-wrap {
   position: relative;
   display: grid;
-  place-items: center;
+  place-items: start center;
+  align-content: start;
   overflow: hidden;
+  min-height: 0;
   padding: 24px;
   background:
     radial-gradient(circle at center, rgba(82, 214, 160, 0.08), transparent 42%),
@@ -105,18 +113,23 @@ button:hover {
   z-index: 1;
   width: min(100%, 1120px);
   height: auto;
-  max-height: calc(100vh - 128px);
   aspect-ratio: 3 / 2;
   border: 1px solid #2f3740;
   background: #101419;
   box-shadow: 0 20px 70px rgba(0, 0, 0, 0.3);
+  /* Fixed viewport budget: topbar (~110px) + wrap padding, so the whole
+     stage fits on screen with no page scroll needed to see it. */
+  max-height: calc(100vh - 200px);
+  max-height: calc(100dvh - 200px);
 }
 
 .stage-grid {
   position: absolute;
   inset: 24px;
   max-width: 1120px;
-  margin: auto;
+  max-height: calc(100vh - 200px);
+  max-height: calc(100dvh - 200px);
+  margin: 0 auto;
   aspect-ratio: 3 / 2;
   border: 1px solid transparent;
   background-image:
@@ -265,10 +278,19 @@ input[type="checkbox"] {
 
 .curve-row {
   display: grid;
-  grid-template-columns: 60px minmax(0, 1fr) 54px;
+  grid-template-columns: 72px minmax(0, 1fr) 54px 36px;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.curve-row.editable input[type="number"] {
+  min-height: 32px;
+  padding: 4px 6px;
+}
+
+.curve-row button {
+  padding: 0;
 }
 
 .curve-row input {
@@ -329,6 +351,11 @@ input[type="checkbox"] {
 @media (max-width: 1040px) {
   .app {
     grid-template-columns: 1fr;
+  }
+
+  .preview-panel {
+    position: static;
+    height: auto;
   }
 
   .editor-panel {

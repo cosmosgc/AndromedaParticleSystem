@@ -55,7 +55,9 @@ The preview simulates the visual and motion properties that can be represented o
 - `shader`: Exported as YAML when set, but does not alter the canvas preview.
 - `renderLayer`: Exported as YAML when non-zero, but does not alter the canvas preview.
 - `duration`: Exported as the emitter run time. `0` means infinite emission; non-zero values stop new particles after that many seconds.
-- `colorOverLifetime`: Always exported as the final color data and edited directly in the main settings panel.
+- `colorOverLifetime`: Exported only when its "Include" toggle is on; otherwise `startColor`/`endColor` are exported (matching in-game fallback). Same pattern for `size`/`speed`/`alpha`/`emission`/`force`/`velocity` curves.
+- `subEmitterOnSpawn` / `subEmitterOnDeath`, `inheritVelocity`: Exported as YAML. Sub-emitters are not simulated in the preview (in-game they spawn separate effects per particle); `inheritVelocity` has no visible effect because the preview emitter never moves.
+- `spawnOffset`: Applied to spawn positions in the preview and exported.
 
 ## Technologies Used
 
