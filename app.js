@@ -803,7 +803,8 @@ function yamlVec2Curve(name, keys, indent = 2) {
   const itemSpaces = " ".repeat(indent + 2);
   return [
     `${spaces}${name}:`,
-    ...keys.map((key) => `${itemSpaces}- time: ${round(key.time)}\n${itemSpaces}  value: (${round(key.x)}, ${round(key.y)})`)
+    // Vector2CurveKey.Value is Vector2 -> args format "x, y" (Vector2Serializer), not float args
+    ...keys.map((key) => `${itemSpaces}- time: ${round(key.time)}\n${itemSpaces}  value: ${formatVector(key.x, key.y)}`)
   ];
 }
 
@@ -869,10 +870,21 @@ function parseYamlMap(text) {
     }
 
     const parent = stack[stack.length - 1].value;
-    if (rest === "") {
+    // Treat Robust type tags like "!type:Vector2" as a mapping start so
+    // "constantForce: !type:Vector2\n  x: 0\n  y: 0.32" parses as vector
+    // instead of leaving "x"/"y" as siblings on root. Vector fields are
+    // Vector2Serializer (args "x, y"), but import must also accept tag+map.
+    const isTagOnly = /^!type:\S+\s*$/i.test(rest);
+    if (rest === "" || isTagOnly) {
       const nextValue = isNextList(lines, lineIndex) ? [] : {};
-      parent[key] = nextValue;
-      stack.push({ indent, value: nextValue });
+      if (Array.isArray(parent)) {
+        const obj = { [key]: nextValue };
+        parent.push(obj);
+        stack.push({ indent, value: nextValue });
+      } else {
+        parent[key] = nextValue;
+        stack.push({ indent, value: nextValue });
+      }
       continue;
     }
 
@@ -928,16 +940,55 @@ function parseColor(value) {
   };
 }
 
+// Robust Vector2Serializer expects args format "x, y" (e.g. "0, 0.32"), NOT "(x, y)"
+// and NOT "!type:Vector2 {x:..., y:...}". This helper knows when to use vector
+// (2-component Vector2) vs single-float args, and tolerates legacy exports.
 function parseVector(value) {
+  if (value == null) return null;
+  // Already a 2-element array (some YAML parsers emit args as arrays)
+  if (Array.isArray(value) && value.length >= 2) {
+    const x = Number(value[0]);
+    const y = Number(value[1]);
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+  }
+  // Mapping form: {x:..., y:...} or {X:..., Y:...} from "!type:Vector2" vector style
+  if (value && typeof value === "object") {
+    const xRaw = value.x ?? value.X;
+    const yRaw = value.y ?? value.Y;
+    if (xRaw !== undefined && yRaw !== undefined) {
+      const x = Number(xRaw);
+      const y = Number(yRaw);
+      if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
+    }
+    // No x/y keys - not a vector
+    return null;
+  }
   if (typeof value === "string") {
-    const match = value.match(/\(?\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)?/);
-    if (!match) return null;
+    // Strip Robust type tags like "!type:Vector2" and quotes
+    let s = value.trim().replace(/^!type:\S+\s*/i, "").replace(/^["']|["']$/g, "").trim();
+    // Tolerate legacy "(x, y)" args format but prefer "x, y" vector args — strip parens
+    const hasParens = s.startsWith("(") && s.endsWith(")");
+    if (hasParens) s = s.slice(1, -1).trim();
+    // Match "x, y" or "x y" with optional comma/space separator
+    const match = s.match(/^(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)$/);
+    if (!match) {
+      // Fallback: extract first two numbers anywhere in string (e.g. "Vector2(0, 0.32)")
+      const nums = s.match(/-?\d+(?:\.\d+)?/g);
+      if (!nums || nums.length < 2) return null;
+      return { x: Number(nums[0]), y: Number(nums[1]) };
+    }
     return { x: Number(match[1]), y: Number(match[2]) };
   }
-  if (value && typeof value === "object" && "x" in value && "y" in value) {
-    return { x: Number(value.x), y: Number(value.y) };
-  }
   return null;
+}
+
+function formatVector(x, y) {
+  // Canonical Vector2Serializer args format: "x, y" without parens/tags
+  return `${round(x)}, ${round(y)}`;
+}
+
+function isLegacyParenthesizedVector(raw) {
+  return typeof raw === "string" && /^\s*\(.*\)\s*$/.test(raw);
 }
 
 function setField(id, value) {
@@ -1128,6 +1179,19 @@ function importYamlFromText(text) {
   renderColorCurveEditor();
   restart();
   generateYaml();
+
+  // Detect legacy Vector2 args format "(x, y)" or "!type:Vector2" that would fail
+  // Vector2Serializer (expects "x, y"). Import still succeeds via parseVector,
+  // but export will normalize — inform the user.
+  const legacyHints = [];
+  if (isLegacyParenthesizedVector(text.match(/^\s*constantForce\s*:.*$/m)?.[0]?.split(":").slice(1).join(":"))) legacyHints.push("constantForce");
+  if (isLegacyParenthesizedVector(text.match(/^\s*spawnOffset\s*:.*$/m)?.[0]?.split(":").slice(1).join(":"))) legacyHints.push("spawnOffset");
+  if (isLegacyParenthesizedVector(text.match(/^\s*boxExtents\s*:.*$/m)?.[0]?.split(":").slice(1).join(":"))) legacyHints.push("boxExtents");
+  if (/value:\s*\(/.test(text) && (text.includes("forceOverLifetime") || text.includes("velocityOverLifetime"))) legacyHints.push("vec curve value");
+  if (legacyHints.length) {
+    // Non-blocking hint — YAML was imported and will re-export as canonical "x, y"
+    console.warn(`[particle] Legacy vector format "(x, y)" detected for ${legacyHints.join(", ")} — auto-converted to "x, y" for Vector2Serializer.`);
+  }
 }
 
 function showImportStatus(message, isError = false) {
@@ -1181,7 +1245,8 @@ function generateYaml() {
   if (cfg.alignToVelocity) output.push(line("alignToVelocity", true));
   if (cfg.terminalSpeed > 0) output.push(line("terminalSpeed", round(cfg.terminalSpeed)));
   if (cfg.stretchFactor > 0) output.push(line("stretchFactor", round(cfg.stretchFactor)));
-  if (cfg.forceX !== 0 || cfg.forceY !== 0) output.push(line("constantForce", `(${round(cfg.forceX)}, ${round(cfg.forceY)})`));
+  // Vector2 fields: use Vector2Serializer args format "x, y" — not "(x, y)" / "!type:Vector2"
+  if (cfg.forceX !== 0 || cfg.forceY !== 0) output.push(line("constantForce", formatVector(cfg.forceX, cfg.forceY)));
   if (cfg.noiseStrength > 0) {
     output.push(line("noiseStrength", round(cfg.noiseStrength)));
     output.push(line("noiseFrequency", round(cfg.noiseFrequency)));
@@ -1191,7 +1256,7 @@ function generateYaml() {
   if (cfg.startRotationVariance !== 0) output.push(line("startRotationVariance", round(cfg.startRotationVariance)));
   if (cfg.rotationSpeed !== 0) output.push(line("rotationSpeed", round(cfg.rotationSpeed)));
   if (cfg.rotationSpeedVariance !== 0) output.push(line("rotationSpeedVariance", round(cfg.rotationSpeedVariance)));
-  if (cfg.spawnOffsetX !== 0 || cfg.spawnOffsetY !== 0) output.push(line("spawnOffset", `(${round(cfg.spawnOffsetX)}, ${round(cfg.spawnOffsetY)})`));
+  if (cfg.spawnOffsetX !== 0 || cfg.spawnOffsetY !== 0) output.push(line("spawnOffset", formatVector(cfg.spawnOffsetX, cfg.spawnOffsetY)));
   if (cfg.subEmitterOnSpawn) output.push(line("subEmitterOnSpawn", cfg.subEmitterOnSpawn));
   if (cfg.subEmitterOnDeath) output.push(line("subEmitterOnDeath", cfg.subEmitterOnDeath));
 
@@ -1207,7 +1272,8 @@ function generateYaml() {
     output.push("  shape:");
     output.push(line("type", cfg.shapeType, 4));
     if (cfg.shapeType === "Box") {
-      output.push(line("boxExtents", `(${round(cfg.boxX)}, ${round(cfg.boxY)})`, 4));
+      // EmissionShapeData.BoxExtents is Vector2 -> args format "x, y"
+      output.push(line("boxExtents", formatVector(cfg.boxX, cfg.boxY), 4));
     } else {
       output.push(line("radius", round(cfg.shapeRadius), 4));
     }
